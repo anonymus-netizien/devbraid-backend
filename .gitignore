@@ -47,3 +47,7 @@ out/
 # Environment #
 .env
 .env.local
+.env.*.local
+
+# Keep .env.example tracked (it's a template)
+!.env.example
