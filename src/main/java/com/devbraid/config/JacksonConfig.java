@@ -1,3 +1,4 @@
 package com.devbraid.config;
 
-public class JacksonConfig {}
+public class JacksonConfig {
+}

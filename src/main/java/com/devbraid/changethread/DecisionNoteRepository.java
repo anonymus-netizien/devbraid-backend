@@ -1,3 +1,4 @@
 package com.devbraid.changethread;
 
-public interface DecisionNoteRepository {}
+public interface DecisionNoteRepository {
+}

@@ -1,3 +1,4 @@
 package com.devbraid.github.dto;
 
-public class CommitSummaryDto {}
+public class CommitSummaryDto {
+}

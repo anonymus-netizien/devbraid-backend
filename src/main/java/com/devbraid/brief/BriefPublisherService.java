@@ -1,3 +1,4 @@
 package com.devbraid.brief;
 
-public class BriefPublisherService {}
+public class BriefPublisherService {
+}

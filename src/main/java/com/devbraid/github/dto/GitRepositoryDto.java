@@ -1,3 +1,4 @@
 package com.devbraid.github.dto;
 
-public class GitRepositoryDto {}
+public class GitRepositoryDto {
+}

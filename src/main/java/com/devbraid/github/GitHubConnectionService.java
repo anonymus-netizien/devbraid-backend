@@ -1,3 +1,4 @@
 package com.devbraid.github;
 
-public class GitHubConnectionService {}
+public class GitHubConnectionService {
+}

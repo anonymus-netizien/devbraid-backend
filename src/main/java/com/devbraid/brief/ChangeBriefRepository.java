@@ -1,3 +1,4 @@
 package com.devbraid.brief;
 
-public interface ChangeBriefRepository {}
+public interface ChangeBriefRepository {
+}

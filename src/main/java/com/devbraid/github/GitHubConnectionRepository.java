@@ -1,3 +1,4 @@
 package com.devbraid.github;
 
-public interface GitHubConnectionRepository {}
+public interface GitHubConnectionRepository {
+}

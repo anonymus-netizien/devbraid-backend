@@ -1,3 +1,4 @@
 package com.devbraid.analysis;
 
-public class RiskFlagRules {}
+public class RiskFlagRules {
+}
