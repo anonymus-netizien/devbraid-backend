@@ -2,7 +2,7 @@ package com.devbraid.user;
 
 import com.devbraid.security.JwtTokenProvider;
 import com.devbraid.user.dto.LoginResponse;
-import com.devbraid.user.dto.SignupRequest;
+import com.devbraid.user.dto.RegisterRequest;
 import com.devbraid.user.exception.InvalidCredentialsException;
 import com.devbraid.user.exception.UserAlreadyExistsException;
 import com.devbraid.user.exception.UserNotFoundException;
@@ -43,6 +43,7 @@ class UserServiceTest {
     private UserService userService;
 
     private static final UUID USER_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+    private static final String FULL_NAME = "John Doe";
     private static final String EMAIL = "test@example.com";
     private static final String PASSWORD = "password123";
     private static final String HASHED_PASSWORD = "$2a$10$hashedPasswordForTesting";
@@ -50,48 +51,49 @@ class UserServiceTest {
     private static final String REFRESH_TOKEN = "refresh-token-value";
     private static final String ROLE = "DEVELOPER";
 
-    private SignupRequest signupRequest;
+    private RegisterRequest registerRequest;
 
     @BeforeEach
     void setUp() {
         userService = new UserService(userRepository, passwordEncoder, jwtTokenProvider);
-        signupRequest = new SignupRequest(EMAIL, PASSWORD);
+        registerRequest = new RegisterRequest(FULL_NAME, EMAIL, PASSWORD);
     }
 
-    // --- Signup Tests ---
+    // --- Register Tests ---
 
     @Test
-    @DisplayName("signup creates user when email is not already registered")
-    void signup_CreatesUserSuccessfully() {
+    @DisplayName("register creates user when email is not already registered")
+    void register_CreatesUserSuccessfully() {
         when(userRepository.existsByEmail(EMAIL)).thenReturn(false);
         when(passwordEncoder.encode(PASSWORD)).thenReturn(HASHED_PASSWORD);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
-            // Simulate DB-generated UUID
             User savedUser = User.builder()
                     .id(USER_ID)
+                    .fullName(user.getFullName())
                     .email(user.getEmail())
                     .passwordHash(user.getPasswordHash())
                     .build();
             return savedUser;
         });
 
-        userService.signup(signupRequest);
+        userService.register(registerRequest);
 
         verify(userRepository).existsByEmail(EMAIL);
         verify(passwordEncoder).encode(PASSWORD);
         verify(userRepository).save(userCaptor.capture());
         User captured = userCaptor.getValue();
+        assertThat(captured.getFullName()).isEqualTo(FULL_NAME);
         assertThat(captured.getEmail()).isEqualTo(EMAIL);
         assertThat(captured.getPasswordHash()).isEqualTo(HASHED_PASSWORD);
     }
 
     @Test
-    @DisplayName("signup throws UserAlreadyExistsException when email is already registered")
-    void signup_ThrowsUserAlreadyExistsException() {
+    @DisplayName("register throws UserAlreadyExistsException when email is already registered")
+    void register_ThrowsUserAlreadyExistsException() {
         when(userRepository.existsByEmail(EMAIL)).thenReturn(true);
 
-        assertThatThrownBy(() -> userService.signup(signupRequest))
+        assertThatThrownBy(() -> userService.register(registerRequest))
                 .isInstanceOf(UserAlreadyExistsException.class)
                 .hasMessage("Email already registered");
 
@@ -100,11 +102,11 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("signup throws UserAlreadyExistsException with correct message")
-    void signup_ThrowsUserAlreadyExistsException_WithCorrectMessage() {
+    @DisplayName("register throws UserAlreadyExistsException with correct message")
+    void register_ThrowsUserAlreadyExistsException_WithCorrectMessage() {
         when(userRepository.existsByEmail(EMAIL)).thenReturn(true);
 
-        assertThatThrownBy(() -> userService.signup(signupRequest))
+        assertThatThrownBy(() -> userService.register(registerRequest))
                 .isInstanceOf(UserAlreadyExistsException.class)
                 .hasMessageContaining("Email already registered");
     }
@@ -116,6 +118,7 @@ class UserServiceTest {
     void login_ReturnsLoginResponse() {
         User user = User.builder()
                 .id(USER_ID)
+                .fullName(FULL_NAME)
                 .email(EMAIL)
                 .passwordHash(HASHED_PASSWORD)
                 .build();
@@ -166,6 +169,7 @@ class UserServiceTest {
     void login_ThrowsInvalidCredentialsException() {
         User user = User.builder()
                 .id(USER_ID)
+                .fullName(FULL_NAME)
                 .email(EMAIL)
                 .passwordHash(HASHED_PASSWORD)
                 .build();
@@ -184,6 +188,7 @@ class UserServiceTest {
     void login_WithEmptyPassword() {
         User user = User.builder()
                 .id(USER_ID)
+                .fullName(FULL_NAME)
                 .email(EMAIL)
                 .passwordHash(HASHED_PASSWORD)
                 .build();
