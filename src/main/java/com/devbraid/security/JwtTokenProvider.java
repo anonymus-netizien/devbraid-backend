@@ -54,6 +54,15 @@ public class JwtTokenProvider {
         return Instant.now().plusMillis(accessExpirationMs);
     }
 
+    public boolean isRefreshToken(String token) {
+        try {
+            DecodedJWT decoded = verify(token);
+            return "refresh".equals(decoded.getClaim("type").asString());
+        } catch (JWTVerificationException e) {
+            return false;
+        }
+    }
+
     public DecodedJWT verify(String token) throws JWTVerificationException {
         return JWT.require(algorithm).build().verify(token);
     }
