@@ -1,3 +1,4 @@
 package com.devbraid.ai.config;
 
-public class AIConfig {}
+public class AIConfig {
+}

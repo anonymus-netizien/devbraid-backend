@@ -1,3 +1,4 @@
 package com.devbraid.changethread;
 
-public class DecisionNote {}
+public class DecisionNote {
+}

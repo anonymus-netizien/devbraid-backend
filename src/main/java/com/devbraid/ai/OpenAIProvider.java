@@ -1,3 +1,4 @@
 package com.devbraid.ai;
 
-public class OpenAIProvider {}
+public class OpenAIProvider {
+}
