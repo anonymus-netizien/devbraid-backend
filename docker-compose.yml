@@ -10,6 +10,29 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DEV_DB_USERNAME} -d devbraid" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    container_name: devbraid-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+      - DEV_DB_URL=jdbc:postgresql://postgres:5432/devbraid
+      - DEV_DB_USERNAME=${DEV_DB_USERNAME}
+      - DEV_DB_PASSWORD=${DEV_DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
