@@ -5,20 +5,17 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class LoginResponse {
-    private String accessToken;
-    private String refreshToken;
-    private Instant issuedAt;
-    private Instant expiresAt;
+public class UserProfileResponse {
+    private UUID id;
     private String fullName;
     private String email;
-    private UUID userId;
     private String role;
+    private OffsetDateTime createdAt;
 }
