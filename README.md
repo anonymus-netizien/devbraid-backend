@@ -45,14 +45,15 @@ docker compose up -d
 
 ## Environment Configuration
 
-This project uses **Spring Profiles** to manage environment-specific configuration. Configuration is split across multiple YAML files:
+This project uses **Spring Profiles** to manage environment-specific configuration. Configuration is split across
+multiple YAML files:
 
-| File | Purpose |
-|------|---------|
-| `application.yml` | Common configuration shared across all environments |
-| `application-dev.yaml` | Development-specific settings (local, verbose logging) |
-| `application-stage.yaml` | Staging-specific settings (moderate logging, validation) |
-| `application-prod.yaml` | Production-specific settings (minimal logging, hardened security) |
+| File                     | Purpose                                                           |
+|--------------------------|-------------------------------------------------------------------|
+| `application.yml`        | Common configuration shared across all environments               |
+| `application-dev.yaml`   | Development-specific settings (local, verbose logging)            |
+| `application-stage.yaml` | Staging-specific settings (moderate logging, validation)          |
+| `application-prod.yaml`  | Production-specific settings (minimal logging, hardened security) |
 
 ### How Profiles Work
 
@@ -97,16 +98,17 @@ SPRING_PROFILES_ACTIVE=dev
 
 The default profile for local development.
 
-| Setting | Value |
-|---------|-------|
-| Database URL | `jdbc:postgresql://localhost:5433/devbraid` |
-| Server Port | `8080` |
-| Hibernate DDL | `update` (auto-creates/updates tables) |
-| SQL Logging | Enabled (verbose) |
-| Swagger UI | Enabled |
-| Actuator | Enabled |
+| Setting       | Value                                       |
+|---------------|---------------------------------------------|
+| Database URL  | `jdbc:postgresql://localhost:5433/devbraid` |
+| Server Port   | `8080`                                      |
+| Hibernate DDL | `update` (auto-creates/updates tables)      |
+| SQL Logging   | Enabled (verbose)                           |
+| Swagger UI    | Enabled                                     |
+| Actuator      | Enabled                                     |
 
 **Features:**
+
 - Auto-schema updates via Hibernate
 - Detailed SQL logging for debugging
 - CORS allows multiple local origins (`localhost:3000`, `5173`, `4200`)
@@ -116,16 +118,17 @@ The default profile for local development.
 
 For QA and pre-production testing.
 
-| Setting | Value |
-|---------|-------|
-| Database URL | `${STAGE_DB_URL}` (from environment) |
-| Server Port | `8080` |
-| Hibernate DDL | `validate` (no auto-changes) |
-| SQL Logging | Disabled |
-| Swagger UI | Enabled |
-| Actuator | Health, Info, Metrics |
+| Setting       | Value                                |
+|---------------|--------------------------------------|
+| Database URL  | `${STAGE_DB_URL}` (from environment) |
+| Server Port   | `8080`                               |
+| Hibernate DDL | `validate` (no auto-changes)         |
+| SQL Logging   | Disabled                             |
+| Swagger UI    | Enabled                              |
+| Actuator      | Health, Info, Metrics                |
 
 **Features:**
+
 - All secrets via environment variables (no defaults)
 - Schema validation only (no auto-migration)
 - Moderate logging levels
@@ -135,16 +138,17 @@ For QA and pre-production testing.
 
 For live production deployments.
 
-| Setting | Value |
-|---------|-------|
-| Database URL | `${PROD_DB_URL}` (from environment) |
-| Server Port | `8080` |
-| Hibernate DDL | `validate` |
-| SQL Logging | Disabled |
-| Swagger UI | Disabled |
-| Actuator | Health, Info only (restricted) |
+| Setting       | Value                               |
+|---------------|-------------------------------------|
+| Database URL  | `${PROD_DB_URL}` (from environment) |
+| Server Port   | `8080`                              |
+| Hibernate DDL | `validate`                          |
+| SQL Logging   | Disabled                            |
+| Swagger UI    | Disabled                            |
+| Actuator      | Health, Info only (restricted)      |
 
 **Features:**
+
 - All secrets via environment variables (REQUIRED, no defaults)
 - Tomcat tuned for production (200 threads, connection pooling)
 - Response compression enabled
@@ -163,10 +167,10 @@ All environment variables are documented in `.env.example`. Here's a summary of 
 
 #### Common (All Environments)
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SPRING_PROFILES_ACTIVE` | Active Spring profile (`dev`, `stage`, `prod`) | `dev` |
-| `JWT_SECRET` | JWT signing secret (256-bit recommended) | *none* |
+| Variable                 | Description                                    | Default |
+|--------------------------|------------------------------------------------|---------|
+| `SPRING_PROFILES_ACTIVE` | Active Spring profile (`dev`, `stage`, `prod`) | `dev`   |
+| `JWT_SECRET`             | JWT signing secret (256-bit recommended)       | *none*  |
 
 #### Development
 
@@ -174,21 +178,21 @@ All development variables have sensible defaults. Override via `DEV_*` prefixed 
 
 #### Staging (Required)
 
-| Variable | Description |
-|----------|-------------|
-| `STAGE_DB_URL` | PostgreSQL connection URL |
-| `STAGE_DB_USERNAME` | Database username |
-| `STAGE_DB_PASSWORD` | Database password |
-| `STAGE_JWT_SECRET` | JWT signing secret |
+| Variable            | Description               |
+|---------------------|---------------------------|
+| `STAGE_DB_URL`      | PostgreSQL connection URL |
+| `STAGE_DB_USERNAME` | Database username         |
+| `STAGE_DB_PASSWORD` | Database password         |
+| `STAGE_JWT_SECRET`  | JWT signing secret        |
 
 #### Production (Required)
 
-| Variable | Description |
-|----------|-------------|
-| `PROD_DB_URL` | PostgreSQL connection URL |
-| `PROD_DB_USERNAME` | Database username |
-| `PROD_DB_PASSWORD` | Database password |
-| `PROD_JWT_SECRET` | JWT signing secret |
+| Variable           | Description               |
+|--------------------|---------------------------|
+| `PROD_DB_URL`      | PostgreSQL connection URL |
+| `PROD_DB_USERNAME` | Database username         |
+| `PROD_DB_PASSWORD` | Database password         |
+| `PROD_JWT_SECRET`  | JWT signing secret        |
 
 ### Variable Injection Pattern
 
@@ -241,12 +245,12 @@ docker compose down -v
 
 ### Connection Details (Development)
 
-| Property | Value |
-|----------|-------|
-| Host | `localhost` |
-| Port | `5433` |
-| Database | `devbraid` |
-| Username | `devbraid_user` |
+| Property | Value               |
+|----------|---------------------|
+| Host     | `localhost`         |
+| Port     | `5433`              |
+| Database | `devbraid`          |
+| Username | `devbraid_user`     |
 | Password | `devbraid_password` |
 
 ### Migrations
@@ -254,6 +258,7 @@ docker compose down -v
 This project uses **Flyway** for database migrations. Migration files are located in `src/main/resources/db/migration/`.
 
 Migrations run automatically on application startup:
+
 - **dev**: Runs migrations + auto-updates schema via Hibernate
 - **stage**: Runs migrations, validates schema only
 - **prod**: Runs migrations, validates schema only (no out-of-order)

@@ -53,7 +53,8 @@ app:
     allow-credentials: ${DEV_CORS_ALLOW_CREDENTIALS:true}
   jwt:
     secret: ${DEV_JWT_SECRET:dev-jwt-secret-key-for-development-only-12345678901234567890}
-    expiration: ${DEV_JWT_EXPIRATION:86400000}
+    access-expiration: ${DEV_JWT_ACCESS_EXPIRATION:86400000}
+    refresh-expiration: ${DEV_JWT_REFRESH_EXPIRATION:604800000}
 
 # Development Features
 features:
