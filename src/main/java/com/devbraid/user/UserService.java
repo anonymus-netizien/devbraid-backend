@@ -8,6 +8,7 @@ import com.devbraid.user.exception.InvalidCredentialsException;
 import com.devbraid.user.exception.RefreshTokenRevokedException;
 import com.devbraid.user.exception.UserAlreadyExistsException;
 import com.devbraid.user.exception.UserNotFoundException;
+import com.devbraid.user.otp.OtpService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,9 +32,14 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final OtpService otpService;
 
     public void register(RegisterRequest request) {
         log.info("UserService :: Register request for email: {}", request.getEmail());
+
+        if (!otpService.isEmailVerified(request.getEmail())) {
+            throw new IllegalArgumentException("Email not verified. Please verify OTP first.");
+        }
 
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new UserAlreadyExistsException("Email already registered");
@@ -46,6 +52,7 @@ public class UserService {
                 .build();
 
         userRepository.save(user);
+        otpService.clearVerification(request.getEmail());
 
         log.info("UserService :: User registered for email: {}", request.getEmail());
     }

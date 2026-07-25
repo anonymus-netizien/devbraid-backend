@@ -5,6 +5,9 @@ import com.devbraid.user.exception.InvalidCredentialsException;
 import com.devbraid.user.exception.RefreshTokenRevokedException;
 import com.devbraid.user.exception.UserAlreadyExistsException;
 import com.devbraid.user.exception.UserNotFoundException;
+import com.devbraid.user.otp.OtpExpiredException;
+import com.devbraid.user.otp.OtpInvalidException;
+import com.devbraid.user.otp.OtpRateLimitException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,6 +51,30 @@ public class GlobalExceptionHandler {
         log.warn("GlobalExceptionHandler :: Refresh token revoked: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                 ApiResponse.error(ex.getMessage(), HttpStatus.UNAUTHORIZED.value())
+        );
+    }
+
+    @ExceptionHandler(OtpExpiredException.class)
+    public ResponseEntity<ApiResponse<?>> handleOtpExpired(OtpExpiredException ex) {
+        log.warn("GlobalExceptionHandler :: OTP expired: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.GONE).body(
+                ApiResponse.error(ex.getMessage(), HttpStatus.GONE.value())
+        );
+    }
+
+    @ExceptionHandler(OtpInvalidException.class)
+    public ResponseEntity<ApiResponse<?>> handleOtpInvalid(OtpInvalidException ex) {
+        log.warn("GlobalExceptionHandler :: OTP invalid: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ApiResponse.error(ex.getMessage(), HttpStatus.BAD_REQUEST.value())
+        );
+    }
+
+    @ExceptionHandler(OtpRateLimitException.class)
+    public ResponseEntity<ApiResponse<?>> handleOtpRateLimit(OtpRateLimitException ex) {
+        log.warn("GlobalExceptionHandler :: OTP rate limited: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                ApiResponse.error(ex.getMessage(), HttpStatus.TOO_MANY_REQUESTS.value())
         );
     }
 

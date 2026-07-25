@@ -6,6 +6,11 @@ import com.devbraid.user.dto.LoginResponse;
 import com.devbraid.user.dto.RefreshTokenRequest;
 import com.devbraid.user.dto.RegisterRequest;
 import com.devbraid.user.dto.UserProfileResponse;
+import com.devbraid.user.otp.OtpSendRequest;
+import com.devbraid.user.otp.OtpSendResponse;
+import com.devbraid.user.otp.OtpService;
+import com.devbraid.user.otp.OtpVerifyRequest;
+import com.devbraid.user.otp.OtpVerifyResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +31,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final UserService userService;
+    private final OtpService otpService;
+
+    @PostMapping("/otp/send")
+    public ResponseEntity<ApiResponse<OtpSendResponse>> sendOtp(@Valid @RequestBody OtpSendRequest request) {
+        log.info("AuthController :: Received OTP send request for: {}", request.getEmail());
+        otpService.generateAndStoreOtp(request.getEmail());
+        OtpSendResponse response = OtpSendResponse.builder()
+                .email(request.getEmail())
+                .message("OTP sent successfully")
+                .sent(true)
+                .build();
+        return ResponseEntity.ok(ApiResponse.success("OTP sent", response));
+    }
+
+    @PostMapping("/otp/verify")
+    public ResponseEntity<ApiResponse<OtpVerifyResponse>> verifyOtp(@Valid @RequestBody OtpVerifyRequest request) {
+        log.info("AuthController :: Received OTP verify request for: {}", request.getEmail());
+        otpService.verifyOtp(request.getEmail(), request.getOtp());
+        OtpVerifyResponse response = OtpVerifyResponse.builder()
+                .email(request.getEmail())
+                .verified(true)
+                .build();
+        return ResponseEntity.ok(ApiResponse.success("OTP verified", response));
+    }
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
