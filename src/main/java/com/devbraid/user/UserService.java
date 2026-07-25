@@ -5,23 +5,32 @@ import com.devbraid.user.dto.LoginResponse;
 import com.devbraid.user.dto.RegisterRequest;
 import com.devbraid.user.dto.UserProfileResponse;
 import com.devbraid.user.exception.InvalidCredentialsException;
+import com.devbraid.user.exception.RefreshTokenRevokedException;
 import com.devbraid.user.exception.UserAlreadyExistsException;
 import com.devbraid.user.exception.UserNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.HexFormat;
 
 @Slf4j
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     public void register(RegisterRequest request) {
         log.info("UserService :: Register request for email: {}", request.getEmail());
@@ -51,7 +60,9 @@ public class UserService {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
-        return buildLoginResponse(user);
+        LoginResponse response = buildLoginResponse(user);
+        persistRefreshToken(response.getRefreshToken(), user);
+        return response;
     }
 
     public UserProfileResponse getUserProfile(String userId) {
@@ -76,14 +87,43 @@ public class UserService {
             throw new InvalidCredentialsException("Invalid refresh token");
         }
 
-        String userId = jwtTokenProvider.getUserId(refreshToken);
-        String email = jwtTokenProvider.getEmail(refreshToken);
+        // Look up and validate against DB
+        String tokenHash = hashToken(refreshToken);
+        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new InvalidCredentialsException("Refresh token not found"));
 
+        if (storedToken.isRevoked()) {
+            log.warn("UserService :: Attempted use of revoked refresh token");
+            throw new RefreshTokenRevokedException("Refresh token has been revoked");
+        }
+
+        // Revoke old token (rotation)
+        storedToken.revoke();
+        refreshTokenRepository.save(storedToken);
+
+        // Issue new tokens
+        String userId = jwtTokenProvider.getUserId(refreshToken);
         User user = userRepository.findById(java.util.UUID.fromString(userId))
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
 
+        LoginResponse response = buildLoginResponse(user);
+        persistRefreshToken(response.getRefreshToken(), user);
+
         log.info("UserService :: Token refreshed for user id: {}", userId);
-        return buildLoginResponse(user);
+        return response;
+    }
+
+    public void logout(String refreshToken) {
+        log.info("UserService :: Logout request");
+
+        String tokenHash = hashToken(refreshToken);
+        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
+
+        storedToken.revoke();
+        refreshTokenRepository.save(storedToken);
+
+        log.info("UserService :: Refresh token revoked for user");
     }
 
     private LoginResponse buildLoginResponse(User user) {
@@ -103,5 +143,23 @@ public class UserService {
                 .userId(user.getId())
                 .role(userRole)
                 .build();
+    }
+
+    private void persistRefreshToken(String rawToken, User user) {
+        RefreshToken tokenEntity = RefreshToken.builder()
+                .tokenHash(hashToken(rawToken))
+                .user(user)
+                .expiresAt(OffsetDateTime.ofInstant(jwtTokenProvider.getRefreshExpiresAt(), ZoneOffset.UTC))
+                .build();
+        refreshTokenRepository.save(tokenEntity);
+    }
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(token.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 }

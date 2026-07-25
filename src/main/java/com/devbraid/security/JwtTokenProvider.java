@@ -54,6 +54,10 @@ public class JwtTokenProvider {
         return Instant.now().plusMillis(accessExpirationMs);
     }
 
+    public Instant getRefreshExpiresAt() {
+        return Instant.now().plusMillis(refreshExpirationMs);
+    }
+
     public boolean isRefreshToken(String token) {
         try {
             DecodedJWT decoded = verify(token);

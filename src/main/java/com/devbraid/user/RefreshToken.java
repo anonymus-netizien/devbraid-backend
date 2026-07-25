@@ -14,27 +14,36 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users")
+@Table(name = "refresh_tokens")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
 @Builder
-public class User {
+public class RefreshToken {
 
     @Id
     @Generated(event = EventType.INSERT)
     private UUID id;
 
-    @Column(nullable = false, unique = true)
-    private String email;
+    @Column(name = "token_hash", nullable = false, length = 64)
+    private String tokenHash;
 
-    @Column(name = "full_name")
-    private String fullName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(name = "password_hash", nullable = false)
-    private String passwordHash;
+    @Column(name = "expires_at", nullable = false)
+    private OffsetDateTime expiresAt;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean revoked = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    public void revoke() {
+        this.revoked = true;
+    }
 }

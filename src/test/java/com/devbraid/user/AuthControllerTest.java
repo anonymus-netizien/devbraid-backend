@@ -271,4 +271,54 @@ class AuthControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest());
     }
+
+    // --- Logout Tests ---
+
+    @Test
+    @DisplayName("POST /api/v1/auth/logout returns 200 OK with success message")
+    void logout_Returns200() throws Exception {
+        doNothing().when(userService).logout(REFRESH_TOKEN);
+
+        String body = objectMapper.writeValueAsString(
+                new RefreshTokenRequest(REFRESH_TOKEN)
+        );
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Logged out successfully"));
+
+        verify(userService).logout(REFRESH_TOKEN);
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/auth/logout returns 400 when token is blank")
+    void logout_BlankToken_Returns400() throws Exception {
+        String body = objectMapper.writeValueAsString(
+                new RefreshTokenRequest("")
+        );
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/auth/logout returns 401 when token is already revoked")
+    void logout_RevokedToken_Returns401() throws Exception {
+        doThrow(new com.devbraid.user.exception.RefreshTokenRevokedException("Refresh token has been revoked"))
+                .when(userService).logout(REFRESH_TOKEN);
+
+        String body = objectMapper.writeValueAsString(
+                new RefreshTokenRequest(REFRESH_TOKEN)
+        );
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isUnauthorized());
+    }
 }

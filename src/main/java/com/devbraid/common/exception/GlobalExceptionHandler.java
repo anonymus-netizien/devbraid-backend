@@ -2,6 +2,7 @@ package com.devbraid.common.exception;
 
 import com.devbraid.common.ApiResponse;
 import com.devbraid.user.exception.InvalidCredentialsException;
+import com.devbraid.user.exception.RefreshTokenRevokedException;
 import com.devbraid.user.exception.UserAlreadyExistsException;
 import com.devbraid.user.exception.UserNotFoundException;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ApiResponse<?>> handleInvalidCredentials(InvalidCredentialsException ex) {
         log.warn("GlobalExceptionHandler :: Invalid credentials: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ApiResponse.error(ex.getMessage(), HttpStatus.UNAUTHORIZED.value())
+        );
+    }
+
+    @ExceptionHandler(RefreshTokenRevokedException.class)
+    public ResponseEntity<ApiResponse<?>> handleRefreshTokenRevoked(RefreshTokenRevokedException ex) {
+        log.warn("GlobalExceptionHandler :: Refresh token revoked: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                 ApiResponse.error(ex.getMessage(), HttpStatus.UNAUTHORIZED.value())
         );
