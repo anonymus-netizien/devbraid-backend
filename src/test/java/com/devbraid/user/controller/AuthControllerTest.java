@@ -89,7 +89,8 @@ class AuthControllerTest {
     @Test
     @DisplayName("POST /api/v1/auth/otp/verify returns 200 OK")
     void verifyOtp_Returns200() throws Exception {
-        when(otpService.verifyOtp(EMAIL, "123456")).thenReturn(true);
+        doNothing().when(otpService).verifyOtp(EMAIL, "123456");
+        doNothing().when(userService).finalizeRegistration(EMAIL);
 
         String body = objectMapper.writeValueAsString(new OtpVerifyRequest(EMAIL, "123456"));
 
@@ -99,6 +100,8 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.verified").value(true));
+
+        verify(userService).finalizeRegistration(EMAIL);
     }
 
     @Test

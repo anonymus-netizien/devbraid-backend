@@ -55,7 +55,7 @@ app:
     allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
   jwt:
     secret: ${JWT_SECRET}
-    access-expiration: ${JWT_ACCESS_EXPIRATION:86400000}
+    access-expiration: ${JWT_ACCESS_EXPIRATION:1800000}
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
   api:
     version: ${API_VERSION:v1}

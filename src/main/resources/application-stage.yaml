@@ -53,7 +53,7 @@ app:
     allow-credentials: true
   jwt:
     secret: ${STAGE_JWT_SECRET}
-    access-expiration: ${STAGE_JWT_ACCESS_EXPIRATION:86400000}
+    access-expiration: ${STAGE_JWT_ACCESS_EXPIRATION:1800000}
     refresh-expiration: ${STAGE_JWT_REFRESH_EXPIRATION:604800000}
 
 # Staging Features

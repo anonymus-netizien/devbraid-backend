@@ -71,50 +71,43 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("register creates user when email is verified and not already registered")
-    void register_CreatesUserSuccessfully() {
-        when(otpService.isEmailVerified(EMAIL)).thenReturn(true);
+    @DisplayName("register stores pending registration in Redis when email not yet verified")
+    void register_StoresPendingInRedis_WhenEmailNotYetVerified() {
         when(userRepository.existsByEmail(EMAIL)).thenReturn(false);
         when(passwordEncoder.encode(PASSWORD)).thenReturn(HASHED_PASSWORD);
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
-            User user = invocation.getArgument(0);
-            return User.builder()
-                    .id(USER_ID)
-                    .fullName(user.getFullName())
-                    .email(user.getEmail())
-                    .passwordHash(user.getPasswordHash())
-                    .build();
-        });
+        when(otpService.isEmailVerified(EMAIL)).thenReturn(false);
 
         userService.register(registerRequest);
 
+        verify(otpService).storePendingRegistration(EMAIL, HASHED_PASSWORD, FULL_NAME);
         verify(otpService).isEmailVerified(EMAIL);
-        verify(userRepository).existsByEmail(EMAIL);
-        verify(passwordEncoder).encode(PASSWORD);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("register finalizes to PostgreSQL when OTP already verified (backward compat)")
+    void register_FinalizesToPostgres_WhenOtpAlreadyVerified() {
+        when(userRepository.existsByEmail(EMAIL)).thenReturn(false);
+        when(passwordEncoder.encode(PASSWORD)).thenReturn(HASHED_PASSWORD);
+        when(otpService.isEmailVerified(EMAIL)).thenReturn(true);
+        when(otpService.getPendingRegistration(EMAIL))
+                .thenReturn(new OtpService.PendingUser(HASHED_PASSWORD, FULL_NAME));
+
+        userService.register(registerRequest);
+
+        verify(otpService).storePendingRegistration(EMAIL, HASHED_PASSWORD, FULL_NAME);
         verify(userRepository).save(userCaptor.capture());
         User captured = userCaptor.getValue();
         assertThat(captured.getFullName()).isEqualTo(FULL_NAME);
         assertThat(captured.getEmail()).isEqualTo(EMAIL);
         assertThat(captured.getPasswordHash()).isEqualTo(HASHED_PASSWORD);
+        verify(otpService).deletePendingRegistration(EMAIL);
         verify(otpService).clearVerification(EMAIL);
-    }
-
-    @Test
-    @DisplayName("register throws IllegalArgumentException when email not verified")
-    void register_ThrowsIfEmailNotVerified() {
-        when(otpService.isEmailVerified(EMAIL)).thenReturn(false);
-
-        assertThatThrownBy(() -> userService.register(registerRequest))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Email not verified");
-
-        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
     @DisplayName("register throws UserAlreadyExistsException when email is already registered")
     void register_ThrowsUserAlreadyExistsException() {
-        when(otpService.isEmailVerified(EMAIL)).thenReturn(true);
         when(userRepository.existsByEmail(EMAIL)).thenReturn(true);
 
         assertThatThrownBy(() -> userService.register(registerRequest))

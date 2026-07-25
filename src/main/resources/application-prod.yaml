@@ -67,7 +67,7 @@ app:
     allow-credentials: true
   jwt:
     secret: ${PROD_JWT_SECRET}
-    access-expiration: ${PROD_JWT_ACCESS_EXPIRATION:86400000}
+    access-expiration: ${PROD_JWT_ACCESS_EXPIRATION:1800000}
     refresh-expiration: ${PROD_JWT_REFRESH_EXPIRATION:604800000}
 
 # Production Features (disable dev tools)

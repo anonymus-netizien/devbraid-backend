@@ -21,8 +21,11 @@ public class OtpService {
     private static final String OTP_PREFIX = "otp:";
     private static final String OTP_VERIFIED_PREFIX = "otp_verified:";
     private static final String RATE_LIMIT_PREFIX = "otp_rate:";
+    private static final String PENDING_USER_PREFIX = "pending_user:";
+    private static final String PENDING_USER_SEPARATOR = "||";
     private static final Duration OTP_TTL = Duration.ofMinutes(5);
     private static final Duration RATE_LIMIT_TTL = Duration.ofMinutes(1);
+    private static final Duration PENDING_USER_TTL = Duration.ofMinutes(30);
     private static final int MAX_OTP_REQUESTS_PER_MINUTE = 3;
 
     public void generateAndStoreOtp(String email) {
@@ -42,7 +45,7 @@ public class OtpService {
         log.info("OtpService :: Generated OTP for email: {} (dev mode: {})", email, otp);
     }
 
-    public boolean verifyOtp(String email, String otp) {
+    public void verifyOtp(String email, String otp) {
         String otpKey = OTP_PREFIX + email;
         String storedOtp = redisTemplate.opsForValue().get(otpKey);
 
@@ -56,7 +59,25 @@ public class OtpService {
 
         redisTemplate.delete(otpKey);
         redisTemplate.opsForValue().set(OTP_VERIFIED_PREFIX + email, "true", Duration.ofMinutes(10));
-        return true;
+    }
+
+    // ponytail: pipe-delimited instead of JSON — 2 fields don't need a serializer
+    public void storePendingRegistration(String email, String passwordHash, String fullName) {
+        String value = passwordHash + PENDING_USER_SEPARATOR + fullName;
+        redisTemplate.opsForValue().set(PENDING_USER_PREFIX + email, value, PENDING_USER_TTL);
+        log.info("OtpService :: Stored pending registration for email: {}", email);
+    }
+
+    public PendingUser getPendingRegistration(String email) {
+        String raw = redisTemplate.opsForValue().get(PENDING_USER_PREFIX + email);
+        if (raw == null) return null;
+        int sep = raw.indexOf(PENDING_USER_SEPARATOR);
+        if (sep < 0) return null;
+        return new PendingUser(raw.substring(0, sep), raw.substring(sep + PENDING_USER_SEPARATOR.length()));
+    }
+
+    public void deletePendingRegistration(String email) {
+        redisTemplate.delete(PENDING_USER_PREFIX + email);
     }
 
     public boolean isEmailVerified(String email) {
@@ -67,5 +88,5 @@ public class OtpService {
         redisTemplate.delete(OTP_VERIFIED_PREFIX + email);
     }
 
-
+    public record PendingUser(String passwordHash, String fullName) {}
 }

@@ -39,24 +39,56 @@ public class UserService {
     public void register(RegisterRequest request) {
         log.info("UserService :: Register request for email: {}", request.getEmail());
 
-        if (!otpService.isEmailVerified(request.getEmail())) {
-            throw new IllegalArgumentException("Email not verified. Please verify OTP first.");
+        if (request.isDisposableEmail()) {
+            throw new IllegalArgumentException("Disposable email addresses are not allowed");
         }
 
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new UserAlreadyExistsException("Email already registered");
         }
 
+        // Store in Redis first — never touch PostgreSQL until OTP is verified
+        // ponytail: pending_user avoids garbage rows from abandoned signups
+        String passwordHash = passwordEncoder.encode(request.getPassword());
+        otpService.storePendingRegistration(request.getEmail(), passwordHash, request.getFullName());
+
+        // If OTP was already verified (backward compat), finalize immediately
+        if (otpService.isEmailVerified(request.getEmail())) {
+            finalizeRegistration(request.getEmail());
+        }
+
+        log.info("UserService :: Pending registration stored for email: {}", request.getEmail());
+    }
+
+    /**
+     * Moves a pending registration from Redis to PostgreSQL.
+     * Called by AuthController.verifyOtp after successful OTP verification.
+     */
+    public void finalizeRegistration(String email) {
+        var pending = otpService.getPendingRegistration(email);
+        if (pending == null) {
+            log.warn("UserService :: No pending registration found for email: {}", email);
+            return;
+        }
+
+        if (userRepository.existsByEmail(email)) {
+            log.warn("UserService :: User already exists for email: {}, cleaning up pending", email);
+            otpService.deletePendingRegistration(email);
+            otpService.clearVerification(email);
+            return;
+        }
+
         User user = User.builder()
-                .fullName(request.getFullName())
-                .email(request.getEmail())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .fullName(pending.fullName())
+                .email(email)
+                .passwordHash(pending.passwordHash())
                 .build();
 
         userRepository.save(user);
-        otpService.clearVerification(request.getEmail());
+        otpService.deletePendingRegistration(email);
+        otpService.clearVerification(email);
 
-        log.info("UserService :: User registered for email: {}", request.getEmail());
+        log.info("UserService :: User finalized from pending registration for email: {}", email);
     }
 
     public LoginResponse login(String email, String password) {

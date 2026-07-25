@@ -48,6 +48,10 @@ public class AuthController {
     public ResponseEntity<ApiResponse<OtpVerifyResponse>> verifyOtp(@Valid @RequestBody OtpVerifyRequest request) {
         log.info("AuthController :: Received OTP verify request for: {}", request.getEmail());
         otpService.verifyOtp(request.getEmail(), request.getOtp());
+
+        // If there's a pending registration in Redis, finalize it to PostgreSQL
+        userService.finalizeRegistration(request.getEmail());
+
         OtpVerifyResponse response = OtpVerifyResponse.builder()
                 .email(request.getEmail())
                 .verified(true)
