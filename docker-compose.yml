@@ -1,4 +1,15 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: devbraid-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   postgres:
     image: postgres:18-alpine
     container_name: devbraid-db
@@ -30,8 +41,12 @@ services:
       - DEV_DB_URL=jdbc:postgresql://postgres:5432/devbraid
       - DEV_DB_USERNAME=${DEV_DB_USERNAME}
       - DEV_DB_PASSWORD=${DEV_DB_PASSWORD}
+      - DEV_REDIS_HOST=redis
+      - DEV_REDIS_PORT=6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   pgadmin:
