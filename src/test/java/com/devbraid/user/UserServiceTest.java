@@ -4,6 +4,7 @@ import com.devbraid.security.JwtTokenProvider;
 import com.devbraid.user.dto.LoginResponse;
 import com.devbraid.user.dto.RegisterRequest;
 import com.devbraid.user.exception.InvalidCredentialsException;
+import com.devbraid.user.exception.RefreshTokenRevokedException;
 import com.devbraid.user.exception.UserAlreadyExistsException;
 import com.devbraid.user.exception.UserNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +38,9 @@ class UserServiceTest {
     @Mock
     private JwtTokenProvider jwtTokenProvider;
 
+    @Mock
+    private RefreshTokenRepository refreshTokenRepository;
+
     @Captor
     private ArgumentCaptor<User> userCaptor;
 
@@ -55,7 +59,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, passwordEncoder, jwtTokenProvider);
+        userService = new UserService(userRepository, passwordEncoder, jwtTokenProvider, refreshTokenRepository);
         registerRequest = new RegisterRequest(FULL_NAME, EMAIL, PASSWORD);
     }
 
@@ -127,6 +131,8 @@ class UserServiceTest {
         when(jwtTokenProvider.createAccessToken(USER_ID.toString(), EMAIL, ROLE)).thenReturn(ACCESS_TOKEN);
         when(jwtTokenProvider.createRefreshToken(USER_ID.toString(), EMAIL, ROLE)).thenReturn(REFRESH_TOKEN);
         when(jwtTokenProvider.getAccessExpiresAt()).thenReturn(Instant.now().plusSeconds(3600));
+        when(jwtTokenProvider.getRefreshExpiresAt()).thenReturn(Instant.now().plusSeconds(604800));
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         LoginResponse response = userService.login(EMAIL, PASSWORD);
 
@@ -139,6 +145,8 @@ class UserServiceTest {
         assertThat(response.getIssuedAt()).isNotNull();
         assertThat(response.getExpiresAt()).isNotNull();
         assertThat(response.getExpiresAt()).isAfter(response.getIssuedAt());
+
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
 
     @Test
@@ -196,6 +204,108 @@ class UserServiceTest {
         when(passwordEncoder.matches("", HASHED_PASSWORD)).thenReturn(false);
 
         assertThatThrownBy(() -> userService.login(EMAIL, ""))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    // --- Refresh Token Tests ---
+
+    @Test
+    @DisplayName("refreshToken returns new LoginResponse with valid token")
+    void refreshToken_ReturnsNewTokens() {
+        String tokenHash = "abc123";
+        User user = User.builder()
+                .id(USER_ID)
+                .fullName(FULL_NAME)
+                .email(EMAIL)
+                .passwordHash(HASHED_PASSWORD)
+                .build();
+        RefreshToken storedToken = RefreshToken.builder()
+                .tokenHash(tokenHash)
+                .user(user)
+                .build();
+
+        when(jwtTokenProvider.isRefreshToken(REFRESH_TOKEN)).thenReturn(true);
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(storedToken));
+        when(jwtTokenProvider.getUserId(REFRESH_TOKEN)).thenReturn(USER_ID.toString());
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(jwtTokenProvider.createAccessToken(USER_ID.toString(), EMAIL, ROLE)).thenReturn("new-access");
+        when(jwtTokenProvider.createRefreshToken(USER_ID.toString(), EMAIL, ROLE)).thenReturn("new-refresh");
+        when(jwtTokenProvider.getAccessExpiresAt()).thenReturn(Instant.now().plusSeconds(3600));
+        when(jwtTokenProvider.getRefreshExpiresAt()).thenReturn(Instant.now().plusSeconds(604800));
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LoginResponse response = userService.refreshToken(REFRESH_TOKEN);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getAccessToken()).isEqualTo("new-access");
+        assertThat(response.getRefreshToken()).isEqualTo("new-refresh");
+        assertThat(storedToken.isRevoked()).isTrue();
+        verify(refreshTokenRepository, times(2)).save(any(RefreshToken.class));
+    }
+
+    @Test
+    @DisplayName("refreshToken throws RefreshTokenRevokedException when token is revoked")
+    void refreshToken_RevokedToken_ThrowsException() {
+        User user = User.builder()
+                .id(USER_ID)
+                .fullName(FULL_NAME)
+                .email(EMAIL)
+                .build();
+        RefreshToken revokedToken = RefreshToken.builder()
+                .tokenHash("abc123")
+                .user(user)
+                .build();
+        revokedToken.revoke();
+
+        when(jwtTokenProvider.isRefreshToken(REFRESH_TOKEN)).thenReturn(true);
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(revokedToken));
+
+        assertThatThrownBy(() -> userService.refreshToken(REFRESH_TOKEN))
+                .isInstanceOf(RefreshTokenRevokedException.class)
+                .hasMessage("Refresh token has been revoked");
+    }
+
+    @Test
+    @DisplayName("refreshToken throws InvalidCredentialsException when token not in DB")
+    void refreshToken_NotFound_ThrowsException() {
+        when(jwtTokenProvider.isRefreshToken(REFRESH_TOKEN)).thenReturn(true);
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.refreshToken(REFRESH_TOKEN))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Refresh token not found");
+    }
+
+    // --- Logout Tests ---
+
+    @Test
+    @DisplayName("logout revokes the refresh token")
+    void logout_RevokesToken() {
+        User user = User.builder()
+                .id(USER_ID)
+                .fullName(FULL_NAME)
+                .email(EMAIL)
+                .build();
+        RefreshToken storedToken = RefreshToken.builder()
+                .tokenHash("abc123")
+                .user(user)
+                .build();
+
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(storedToken));
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        userService.logout(REFRESH_TOKEN);
+
+        assertThat(storedToken.isRevoked()).isTrue();
+        verify(refreshTokenRepository).save(storedToken);
+    }
+
+    @Test
+    @DisplayName("logout throws InvalidCredentialsException when token not found")
+    void logout_NotFound_ThrowsException() {
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.logout(REFRESH_TOKEN))
                 .isInstanceOf(InvalidCredentialsException.class);
     }
 }
