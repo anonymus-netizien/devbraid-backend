@@ -25,7 +25,8 @@ public class OtpService {
     private static final String PENDING_USER_SEPARATOR = "||";
     private static final Duration OTP_TTL = Duration.ofMinutes(5);
     private static final Duration RATE_LIMIT_TTL = Duration.ofMinutes(1);
-    private static final Duration PENDING_USER_TTL = Duration.ofMinutes(30);
+    // ponytail: matches otp_verified TTL — pending data self-destructs as fast as the OTP window
+    private static final Duration PENDING_USER_TTL = Duration.ofMinutes(10);
     private static final int MAX_OTP_REQUESTS_PER_MINUTE = 3;
 
     public void generateAndStoreOtp(String email) {
