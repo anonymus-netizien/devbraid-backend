@@ -16,6 +16,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -26,7 +27,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
         log.warn("GlobalExceptionHandler :: User already exists: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(
-                ApiResponse.error(ex.getMessage(), HttpStatus.CONFLICT.value())
+                ApiResponse.error(ex.getMessage())
         );
     }
 
@@ -34,7 +35,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleUserNotFound(UserNotFoundException ex) {
         log.warn("GlobalExceptionHandler :: User not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                ApiResponse.error(ex.getMessage(), HttpStatus.NOT_FOUND.value())
+                ApiResponse.error(ex.getMessage())
         );
     }
 
@@ -42,7 +43,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleInvalidCredentials(InvalidCredentialsException ex) {
         log.warn("GlobalExceptionHandler :: Invalid credentials: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                ApiResponse.error(ex.getMessage(), HttpStatus.UNAUTHORIZED.value())
+                ApiResponse.error(ex.getMessage())
         );
     }
 
@@ -50,7 +51,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleRefreshTokenRevoked(RefreshTokenRevokedException ex) {
         log.warn("GlobalExceptionHandler :: Refresh token revoked: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                ApiResponse.error(ex.getMessage(), HttpStatus.UNAUTHORIZED.value())
+                ApiResponse.error(ex.getMessage())
         );
     }
 
@@ -58,7 +59,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleOtpExpired(OtpExpiredException ex) {
         log.warn("GlobalExceptionHandler :: OTP expired: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.GONE).body(
-                ApiResponse.error(ex.getMessage(), HttpStatus.GONE.value())
+                ApiResponse.error(ex.getMessage())
         );
     }
 
@@ -66,7 +67,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleOtpInvalid(OtpInvalidException ex) {
         log.warn("GlobalExceptionHandler :: OTP invalid: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                ApiResponse.error(ex.getMessage(), HttpStatus.BAD_REQUEST.value())
+                ApiResponse.error(ex.getMessage())
         );
     }
 
@@ -74,7 +75,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleOtpRateLimit(OtpRateLimitException ex) {
         log.warn("GlobalExceptionHandler :: OTP rate limited: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
-                ApiResponse.error(ex.getMessage(), HttpStatus.TOO_MANY_REQUESTS.value())
+                ApiResponse.error(ex.getMessage())
         );
     }
 
@@ -82,24 +83,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("GlobalExceptionHandler :: Bad request: {}", ex.getMessage());
         return ResponseEntity.badRequest().body(
-                ApiResponse.error(
-                        ex.getMessage(),
-                        HttpStatus.BAD_REQUEST.value()
-                )
+                ApiResponse.error(ex.getMessage())
         );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<?>> handleValidationErrors(MethodArgumentNotValidException ex) {
-        String errors = ex
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationErrors(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = ex
                 .getBindingResult()
                 .getFieldErrors()
                 .stream()
-                .map(FieldError::getDefaultMessage)
-                .collect(Collectors.joining(", "));
+                .collect(Collectors.toMap(
+                        FieldError::getField,
+                        FieldError::getDefaultMessage,
+                        (a, b) -> a
+                ));
         log.warn("GlobalExceptionHandler :: Validation failed: {}", errors);
         return ResponseEntity.badRequest().body(
-                ApiResponse.error(errors, HttpStatus.BAD_REQUEST.value())
+                ApiResponse.error("Validation failed", errors)
         );
     }
 
@@ -107,10 +108,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleRuntimeException(RuntimeException ex) {
         log.error("GlobalExceptionHandler :: Runtime exception: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                ApiResponse.error(
-                        "Runtime error occurred",
-                        HttpStatus.INTERNAL_SERVER_ERROR.value()
-                )
+                ApiResponse.error("Runtime error occurred")
         );
     }
 
@@ -122,10 +120,7 @@ public class GlobalExceptionHandler {
                 ex
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                ApiResponse.error(
-                        "Internal server error",
-                        HttpStatus.INTERNAL_SERVER_ERROR.value()
-                )
+                ApiResponse.error("Internal server error")
         );
     }
 }
