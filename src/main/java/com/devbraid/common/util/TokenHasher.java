@@ -7,7 +7,8 @@ import java.util.HexFormat;
 
 public final class TokenHasher {
 
-    private TokenHasher() {}
+    private TokenHasher() {
+    }
 
     public static String hash(String token) {
         try {

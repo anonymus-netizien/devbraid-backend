@@ -7,7 +7,8 @@ public final class OtpGenerator {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int OTP_LENGTH = 6;
 
-    private OtpGenerator() {}
+    private OtpGenerator() {
+    }
 
     public static String generate() {
         int min = (int) Math.pow(10, OTP_LENGTH - 1);

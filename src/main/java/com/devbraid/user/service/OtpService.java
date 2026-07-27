@@ -16,8 +16,6 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class OtpService {
 
-    private final StringRedisTemplate redisTemplate;
-
     private static final String OTP_PREFIX = "otp:";
     private static final String OTP_VERIFIED_PREFIX = "otp_verified:";
     private static final String RATE_LIMIT_PREFIX = "otp_rate:";
@@ -28,6 +26,7 @@ public class OtpService {
     // ponytail: matches otp_verified TTL — pending data self-destructs as fast as the OTP window
     private static final Duration PENDING_USER_TTL = Duration.ofMinutes(10);
     private static final int MAX_OTP_REQUESTS_PER_MINUTE = 3;
+    private final StringRedisTemplate redisTemplate;
 
     public void generateAndStoreOtp(String email) {
         String rateLimitKey = RATE_LIMIT_PREFIX + email;
@@ -89,5 +88,6 @@ public class OtpService {
         redisTemplate.delete(OTP_VERIFIED_PREFIX + email);
     }
 
-    public record PendingUser(String passwordHash, String fullName) {}
+    public record PendingUser(String passwordHash, String fullName) {
+    }
 }

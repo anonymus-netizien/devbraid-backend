@@ -2,8 +2,8 @@ package com.devbraid.user.service;
 
 import com.devbraid.common.util.TokenHasher;
 import com.devbraid.security.JwtTokenProvider;
-import com.devbraid.user.dto.response.LoginResponse;
 import com.devbraid.user.dto.request.RegisterRequest;
+import com.devbraid.user.dto.response.LoginResponse;
 import com.devbraid.user.dto.response.UserProfileResponse;
 import com.devbraid.user.entity.RefreshToken;
 import com.devbraid.user.entity.User;
@@ -13,7 +13,6 @@ import com.devbraid.user.exception.UserAlreadyExistsException;
 import com.devbraid.user.exception.UserNotFoundException;
 import com.devbraid.user.repository.RefreshTokenRepository;
 import com.devbraid.user.repository.UserRepository;
-import com.devbraid.user.service.OtpService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
