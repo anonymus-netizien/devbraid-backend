@@ -61,7 +61,7 @@ logging:
     org.springframework.web: ${DEV_LOG_LEVEL_WEB:DEBUG}
     org.springframework.security: ${DEV_LOG_LEVEL_SECURITY:DEBUG}
 
-# Development-specific CORS (allow all origins for local dev)
+# Development-specific config: CORS, JWT, Encryption
 app:
   cors:
     allowed-origins: ${DEV_CORS_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:4200}
@@ -70,7 +70,8 @@ app:
     secret: ${DEV_JWT_SECRET:dev-jwt-secret-key-for-development-only-12345678901234567890}
     access-expiration: ${DEV_JWT_ACCESS_EXPIRATION:1800000}
     refresh-expiration: ${DEV_JWT_REFRESH_EXPIRATION:604800000}
-
+  encryption:
+    key: ${ENCRYPTION_KEY:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
 
 # Development Features
 features:

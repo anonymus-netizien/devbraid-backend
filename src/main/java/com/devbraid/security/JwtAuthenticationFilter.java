@@ -1,6 +1,8 @@
 package com.devbraid.security;
 
 import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.devbraid.user.entity.User;
+import com.devbraid.user.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -22,6 +25,7 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -37,8 +41,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String email = jwt.getClaim("email").asString();
                 String role = jwt.getClaim("role").asString();
 
+                // Load the full User entity so @AuthenticationPrincipal User resolves correctly
+                User user = userRepository.findById(UUID.fromString(userId)).orElse(null);
+
                 var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
-                var auth = new UsernamePasswordAuthenticationToken(userId, null, authorities);
+                var auth = new UsernamePasswordAuthenticationToken(user, null, authorities);
 
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 log.debug("JwtFilter :: Authenticated user: {} with role: {}", email, role);

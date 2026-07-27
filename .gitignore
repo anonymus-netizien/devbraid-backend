@@ -54,6 +54,12 @@ out/
 # Documentation (keep local, don't commit)
 CHECKLIST.md
 API.md
+ARCHITECTURE.md
 
 # Added by code-review-graph
 .code-review-graph/
+
+# Test artifacts
+testsprite_tests/
+.testsprite_tmp/
+.project

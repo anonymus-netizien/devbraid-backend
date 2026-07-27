@@ -1,38 +1,33 @@
 package com.devbraid.user.controller;
 
 import com.devbraid.common.ApiResponse;
-import com.devbraid.user.dto.request.LoginRequest;
+import com.devbraid.user.dto.request.*;
 import com.devbraid.user.dto.response.LoginResponse;
-import com.devbraid.user.dto.request.RefreshTokenRequest;
-import com.devbraid.user.dto.request.RegisterRequest;
-import com.devbraid.user.dto.response.UserProfileResponse;
-import com.devbraid.user.dto.request.OtpSendRequest;
 import com.devbraid.user.dto.response.OtpSendResponse;
+import com.devbraid.user.dto.response.OtpVerifyResponse;
+import com.devbraid.user.dto.response.UserProfileResponse;
+import com.devbraid.user.entity.User;
 import com.devbraid.user.service.OtpService;
 import com.devbraid.user.service.UserService;
-import com.devbraid.user.dto.request.OtpVerifyRequest;
-import com.devbraid.user.dto.response.OtpVerifyResponse;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
     private final UserService userService;
     private final OtpService otpService;
+
+    public AuthController(UserService userService, OtpService otpService) {
+        this.userService = userService;
+        this.otpService = otpService;
+    }
 
     @PostMapping("/otp/send")
     public ResponseEntity<ApiResponse<OtpSendResponse>> sendOtp(@Valid @RequestBody OtpSendRequest request) {
@@ -75,11 +70,9 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserProfileResponse>> me() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String userId = authentication.getName();
-        log.info("AuthController :: Fetching profile for user id: {}", userId);
-        UserProfileResponse profile = userService.getUserProfile(userId);
+    public ResponseEntity<ApiResponse<UserProfileResponse>> me(@AuthenticationPrincipal User user) {
+        log.info("AuthController :: Fetching profile for user id: {}", user.getId());
+        UserProfileResponse profile = userService.getUserProfile(user.getId().toString());
         return ResponseEntity.ok(ApiResponse.success("User profile retrieved", profile));
     }
 

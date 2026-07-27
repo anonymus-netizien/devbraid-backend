@@ -1,20 +1,15 @@
 package com.devbraid.user.controller;
 
 import com.devbraid.common.exception.GlobalExceptionHandler;
-import com.devbraid.user.dto.request.LoginRequest;
-import com.devbraid.user.dto.request.OtpSendRequest;
-import com.devbraid.user.dto.request.OtpVerifyRequest;
-import com.devbraid.user.dto.request.RefreshTokenRequest;
-import com.devbraid.user.dto.request.RegisterRequest;
+import com.devbraid.user.dto.request.*;
 import com.devbraid.user.dto.response.LoginResponse;
-import com.devbraid.user.dto.response.OtpSendResponse;
-import com.devbraid.user.dto.response.OtpVerifyResponse;
 import com.devbraid.user.dto.response.UserProfileResponse;
+import com.devbraid.user.entity.User;
 import com.devbraid.user.exception.UserAlreadyExistsException;
-import com.devbraid.user.exception.UserNotFoundException;
 import com.devbraid.user.service.OtpService;
 import com.devbraid.user.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -35,23 +31,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DisplayName("AuthController Unit Tests")
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
-
-    private MockMvc mockMvc;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @Mock
-    private UserService userService;
-
-    @Mock
-    private OtpService otpService;
-
-    private AuthController authController;
 
     private static final String EMAIL = "test@example.com";
     private static final String PASSWORD = "password123";
@@ -59,6 +44,13 @@ class AuthControllerTest {
     private static final UUID USER_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
     private static final String ACCESS_TOKEN = "access-token-value";
     private static final String REFRESH_TOKEN = "refresh-token-value";
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private MockMvc mockMvc;
+    @Mock
+    private UserService userService;
+    @Mock
+    private OtpService otpService;
+    private AuthController authController;
 
     @BeforeEach
     void setUp() {
@@ -66,7 +58,13 @@ class AuthControllerTest {
         mockMvc = MockMvcBuilders
                 .standaloneSetup(authController)
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -175,8 +173,14 @@ class AuthControllerTest {
     @Test
     @DisplayName("GET /api/v1/auth/me returns 200 OK with user profile")
     void me_Returns200WithProfile() throws Exception {
+        User principal = User.builder()
+                .id(USER_ID)
+                .fullName(FULL_NAME)
+                .email(EMAIL)
+                .build();
+
         SecurityContextHolder.getContext().setAuthentication(
-                new TestingAuthenticationToken(USER_ID.toString(), null, "ROLE_DEVELOPER"));
+                new TestingAuthenticationToken(principal, null, "ROLE_DEVELOPER"));
 
         UserProfileResponse profile = UserProfileResponse.builder()
                 .id(USER_ID)

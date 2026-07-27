@@ -1,4 +1,4 @@
-package com.devbraid.github.dto.response;
+package com.devbraid.github.dto.internal;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
@@ -9,8 +9,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class CommitSummaryDto {
-    private String sha;
-    private String message;
-    private GitCommitAuthor author;
+public class RawGitHubBranch {
+    private String name;
 }

@@ -1,13 +1,11 @@
 package com.devbraid.common.exception;
 
 import com.devbraid.common.ApiResponse;
-import com.devbraid.user.exception.InvalidCredentialsException;
-import com.devbraid.user.exception.RefreshTokenRevokedException;
-import com.devbraid.user.exception.UserAlreadyExistsException;
-import com.devbraid.user.exception.UserNotFoundException;
-import com.devbraid.user.exception.OtpExpiredException;
-import com.devbraid.user.exception.OtpInvalidException;
-import com.devbraid.user.exception.OtpRateLimitException;
+import com.devbraid.github.exception.GitHubAlreadyConnectedException;
+import com.devbraid.github.exception.GitHubNotConnectedException;
+import com.devbraid.github.exception.GitHubRateLimitException;
+import com.devbraid.github.exception.GitHubTokenInvalidException;
+import com.devbraid.user.exception.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +20,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    // ── User exceptions ──
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ApiResponse<?>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
@@ -55,6 +55,8 @@ public class GlobalExceptionHandler {
         );
     }
 
+    // ── OTP exceptions ──
+
     @ExceptionHandler(OtpExpiredException.class)
     public ResponseEntity<ApiResponse<?>> handleOtpExpired(OtpExpiredException ex) {
         log.warn("GlobalExceptionHandler :: OTP expired: {}", ex.getMessage());
@@ -78,6 +80,42 @@ public class GlobalExceptionHandler {
                 ApiResponse.error(ex.getMessage())
         );
     }
+
+    // ── GitHub exceptions ──
+
+    @ExceptionHandler(GitHubAlreadyConnectedException.class)
+    public ResponseEntity<ApiResponse<?>> handleGitHubAlreadyConnected(GitHubAlreadyConnectedException ex) {
+        log.warn("GlobalExceptionHandler :: GitHub already connected: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(GitHubNotConnectedException.class)
+    public ResponseEntity<ApiResponse<?>> handleGitHubNotConnected(GitHubNotConnectedException ex) {
+        log.warn("GlobalExceptionHandler :: GitHub not connected: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(GitHubTokenInvalidException.class)
+    public ResponseEntity<ApiResponse<?>> handleGitHubTokenInvalid(GitHubTokenInvalidException ex) {
+        log.warn("GlobalExceptionHandler :: GitHub token invalid: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(GitHubRateLimitException.class)
+    public ResponseEntity<ApiResponse<?>> handleGitHubRateLimit(GitHubRateLimitException ex) {
+        log.warn("GlobalExceptionHandler :: GitHub rate limited: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    // ── Generic exceptions ──
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<?>> handleIllegalArgument(IllegalArgumentException ex) {
