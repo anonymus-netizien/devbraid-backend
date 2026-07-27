@@ -25,33 +25,14 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @DisplayName("UserService Unit Tests")
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
-
-    @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private PasswordEncoder passwordEncoder;
-
-    @Mock
-    private JwtTokenProvider jwtTokenProvider;
-
-    @Mock
-    private RefreshTokenRepository refreshTokenRepository;
-
-    @Mock
-    private OtpService otpService;
-
-    @Captor
-    private ArgumentCaptor<User> userCaptor;
-
-    private UserService userService;
 
     private static final UUID USER_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
     private static final String FULL_NAME = "John Doe";
@@ -61,7 +42,19 @@ class UserServiceTest {
     private static final String ACCESS_TOKEN = "access-token-value";
     private static final String REFRESH_TOKEN = "refresh-token-value";
     private static final String ROLE = "DEVELOPER";
-
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private PasswordEncoder passwordEncoder;
+    @Mock
+    private JwtTokenProvider jwtTokenProvider;
+    @Mock
+    private RefreshTokenRepository refreshTokenRepository;
+    @Mock
+    private OtpService otpService;
+    @Captor
+    private ArgumentCaptor<User> userCaptor;
+    private UserService userService;
     private RegisterRequest registerRequest;
 
     @BeforeEach

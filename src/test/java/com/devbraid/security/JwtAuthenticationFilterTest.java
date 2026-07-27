@@ -2,7 +2,8 @@ package com.devbraid.security;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.interfaces.DecodedJWT;
+import com.devbraid.user.entity.User;
+import com.devbraid.user.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -13,45 +14,52 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Date;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @DisplayName("JwtAuthenticationFilter Unit Tests")
 @ExtendWith(MockitoExtension.class)
 class JwtAuthenticationFilterTest {
 
-    @Mock
-    private HttpServletRequest request;
-
-    @Mock
-    private HttpServletResponse response;
-
-    @Mock
-    private FilterChain filterChain;
-
-    private JwtTokenProvider jwtTokenProvider;
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
     private static final String SECRET = "test-secret-key-that-is-at-least-256-bits-long-for-hmac";
     private static final String USER_ID = "550e8400-e29b-41d4-a716-446655440000";
     private static final String EMAIL = "test@example.com";
     private static final String ROLE = "DEVELOPER";
+    @Mock
+    private HttpServletRequest request;
+    @Mock
+    private HttpServletResponse response;
+    @Mock
+    private FilterChain filterChain;
+    @Mock
+    private UserRepository userRepository;
+    private JwtTokenProvider jwtTokenProvider;
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
         jwtTokenProvider = new JwtTokenProvider(SECRET, 3600000, 604800000);
-        jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenProvider);
+        jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
     }
 
     @Test
     @DisplayName("valid token sets authentication in SecurityContext")
     void validToken_SetsAuthentication() throws Exception {
+        User mockUser = User.builder()
+                .id(UUID.fromString(USER_ID))
+                .email(EMAIL)
+                .fullName("Test User")
+                .build();
+        when(userRepository.findById(any(UUID.class))).thenReturn(Optional.of(mockUser));
+
         String token = jwtTokenProvider.createAccessToken(USER_ID, EMAIL, ROLE);
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
 
@@ -59,7 +67,7 @@ class JwtAuthenticationFilterTest {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         assertThat(auth).isNotNull();
-        assertThat(auth.getPrincipal()).isEqualTo(USER_ID);
+        assertThat(auth.getPrincipal()).isEqualTo(mockUser);
         assertThat(auth.getAuthorities())
                 .hasSize(1);
         assertThat(auth.getAuthorities().iterator().next().getAuthority())
