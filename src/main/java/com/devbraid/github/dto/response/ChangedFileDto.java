@@ -9,8 +9,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class CommitSummaryDto {
-    private String sha;
-    private String message;
-    private GitCommitAuthor author;
+public class ChangedFileDto {
+    private String filename;
+    private String status;
+    private int additions;
+    private int deletions;
 }
