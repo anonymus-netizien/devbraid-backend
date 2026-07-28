@@ -55,9 +55,11 @@ public class ChangeThread {
     @Column(name = "commit_sha")
     private String commitSha;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String commits;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(name = "changed_files", columnDefinition = "jsonb")
     private String changedFiles;
 
@@ -65,6 +67,7 @@ public class ChangeThread {
     @Column(name = "risk_level")
     private RiskLevel riskLevel;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(name = "risk_report", columnDefinition = "jsonb")
     private String riskReport;
 
