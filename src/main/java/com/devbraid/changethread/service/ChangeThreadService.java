@@ -1,8 +1,6 @@
 package com.devbraid.changethread.service;
 
-import com.devbraid.analysis.dto.RiskFlagDto;
-import com.devbraid.analysis.service.EvidenceExtractor;
-import com.devbraid.analysis.service.RiskFlagRules;
+import com.devbraid.analysis.service.RiskAnalysisService;
 import com.devbraid.changethread.dto.request.CreateThreadRequest;
 import com.devbraid.changethread.dto.request.UpdateThreadRequest;
 import com.devbraid.changethread.dto.response.NoteResponse;
@@ -47,8 +45,7 @@ public class ChangeThreadService {
     private final GitHubApiClient gitHubApiClient;
     private final PatEncryptor patEncryptor;
     private final ObjectMapper objectMapper;
-    private final RiskFlagRules riskFlagRules;
-    private final EvidenceExtractor evidenceExtractor;
+    private final RiskAnalysisService riskAnalysisService;
 
     /**
      * Create a new Change Thread by fetching diff data from GitHub.
@@ -208,17 +205,12 @@ public class ChangeThreadService {
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
 
-        // Run deterministic rules
-        var flags = riskFlagRules.evaluate(thread.getCommits(), thread.getChangedFiles());
-        var evidence = evidenceExtractor.extract(thread.getCommits(), thread.getChangedFiles());
-        RiskLevel overallRisk = riskFlagRules.calculateOverallRisk(flags);
+        // Run deterministic + AI risk analysis
+        var report = riskAnalysisService.analyze(thread.getCommits(), thread.getChangedFiles());
+        RiskLevel overallRisk = (RiskLevel) report.get("overallRisk");
 
-        // Build risk report as JSON
         String riskReport;
         try {
-            var report = new java.util.HashMap<String, Object>();
-            report.put("flags", flags);
-            report.put("evidence", evidence);
             riskReport = objectMapper.writeValueAsString(report);
         } catch (Exception e) {
             riskReport = null;
