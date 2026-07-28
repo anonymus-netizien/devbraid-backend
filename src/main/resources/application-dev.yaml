@@ -71,6 +71,8 @@ app:
     access-expiration: ${DEV_JWT_ACCESS_EXPIRATION:1800000}
     refresh-expiration: ${DEV_JWT_REFRESH_EXPIRATION:604800000}
   encryption:
+    # IMPORTANT: The default key below is for LOCAL DEV ONLY. Never use in production.
+    # Generate a secure key with: openssl rand -hex 32
     key: ${ENCRYPTION_KEY:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
 
 # Development Features

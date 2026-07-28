@@ -63,3 +63,5 @@ ARCHITECTURE.md
 testsprite_tests/
 .testsprite_tmp/
 .project
+.classpath
+.settings/
