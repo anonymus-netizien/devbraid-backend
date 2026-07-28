@@ -1,5 +1,7 @@
 package com.devbraid.changethread.controller;
 
+import com.devbraid.brief.dto.BriefResponse;
+import com.devbraid.brief.service.BriefBuilderService;
 import com.devbraid.changethread.dto.request.CreateThreadRequest;
 import com.devbraid.changethread.dto.request.UpdateThreadRequest;
 import com.devbraid.changethread.dto.response.ThreadResponse;
@@ -26,6 +28,7 @@ import java.util.UUID;
 public class ChangeThreadController {
 
     private final ChangeThreadService threadService;
+    private final BriefBuilderService briefBuilderService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<ThreadResponse>> createThread(
@@ -88,5 +91,22 @@ public class ChangeThreadController {
         log.info("Analyzing thread {} for user {}", id, user.getEmail());
         ThreadResponse response = threadService.analyzeThread(user, id);
         return ResponseEntity.ok(ApiResponse.success("Thread analyzed", response));
+    }
+
+    @PostMapping("/{id}/brief")
+    public ResponseEntity<ApiResponse<BriefResponse>> generateBrief(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user) {
+        log.info("Generating brief for thread {} by user {}", id, user.getEmail());
+        BriefResponse response = briefBuilderService.generateBrief(user, id);
+        return ResponseEntity.ok(ApiResponse.success("Brief generated", response));
+    }
+
+    @GetMapping("/{id}/brief")
+    public ResponseEntity<ApiResponse<BriefResponse>> getBrief(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user) {
+        BriefResponse response = briefBuilderService.getBrief(user, id);
+        return ResponseEntity.ok(ApiResponse.success("Brief retrieved", response));
     }
 }
