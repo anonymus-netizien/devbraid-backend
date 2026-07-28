@@ -1,11 +1,15 @@
 package com.devbraid.changethread.service;
 
+import com.devbraid.analysis.dto.RiskFlagDto;
+import com.devbraid.analysis.service.EvidenceExtractor;
+import com.devbraid.analysis.service.RiskFlagRules;
 import com.devbraid.changethread.dto.request.CreateThreadRequest;
 import com.devbraid.changethread.dto.request.UpdateThreadRequest;
 import com.devbraid.changethread.dto.response.NoteResponse;
 import com.devbraid.changethread.dto.response.ThreadResponse;
 import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.entity.DecisionNote;
+import com.devbraid.changethread.entity.RiskLevel;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.repository.DecisionNoteRepository;
@@ -43,6 +47,8 @@ public class ChangeThreadService {
     private final GitHubApiClient gitHubApiClient;
     private final PatEncryptor patEncryptor;
     private final ObjectMapper objectMapper;
+    private final RiskFlagRules riskFlagRules;
+    private final EvidenceExtractor evidenceExtractor;
 
     /**
      * Create a new Change Thread by fetching diff data from GitHub.
@@ -190,6 +196,39 @@ public class ChangeThreadService {
         }
 
         thread = threadRepository.save(thread);
+        return toResponse(thread);
+    }
+
+    /**
+     * Run deterministic risk analysis on a thread.
+     */
+    @Transactional
+    public ThreadResponse analyzeThread(User user, UUID threadId) {
+        ChangeThread thread = threadRepository
+                .findByIdAndUserId(threadId, user.getId())
+                .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
+
+        // Run deterministic rules
+        var flags = riskFlagRules.evaluate(thread.getCommits(), thread.getChangedFiles());
+        var evidence = evidenceExtractor.extract(thread.getCommits(), thread.getChangedFiles());
+        RiskLevel overallRisk = riskFlagRules.calculateOverallRisk(flags);
+
+        // Build risk report as JSON
+        String riskReport;
+        try {
+            var report = new java.util.HashMap<String, Object>();
+            report.put("flags", flags);
+            report.put("evidence", evidence);
+            riskReport = objectMapper.writeValueAsString(report);
+        } catch (Exception e) {
+            riskReport = null;
+        }
+
+        thread.setRiskLevel(overallRisk);
+        thread.setRiskReport(riskReport);
+        thread = threadRepository.save(thread);
+
+        log.info("Analyzed thread {} — risk level: {}", threadId, overallRisk);
         return toResponse(thread);
     }
 

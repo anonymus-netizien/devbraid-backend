@@ -80,4 +80,13 @@ public class ChangeThreadController {
         ThreadResponse response = threadService.refreshThread(user, id);
         return ResponseEntity.ok(ApiResponse.success("Thread refreshed", response));
     }
+
+    @PostMapping("/{id}/analyze")
+    public ResponseEntity<ApiResponse<ThreadResponse>> analyzeThread(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user) {
+        log.info("Analyzing thread {} for user {}", id, user.getEmail());
+        ThreadResponse response = threadService.analyzeThread(user, id);
+        return ResponseEntity.ok(ApiResponse.success("Thread analyzed", response));
+    }
 }
