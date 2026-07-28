@@ -18,8 +18,8 @@ public class JsonArrayParser {
     /**
      * Parse a JSON array of objects into a list of domain objects.
      *
-     * @param json      the JSON array string
-     * @param mapper    function that maps a JSON object string to a domain object
+     * @param json   the JSON array string
+     * @param mapper function that maps a JSON object string to a domain object
      * @return list of parsed objects
      */
     public <T> List<T> parseArray(String json, Function<String, T> mapper) {

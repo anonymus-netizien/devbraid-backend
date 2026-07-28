@@ -62,35 +62,24 @@ public class BriefPublisherService {
         String owner = parts[0];
         String repo = parts[1];
 
-        try {
-            // Post comment on PR
-            gitHubApiClient.createPullRequestComment(decryptedPat, owner, repo, prNumber, brief.getContent());
+        // ponytail: exception propagates — no graceful degradation
+        gitHubApiClient.createPullRequestComment(decryptedPat, owner, repo, prNumber, brief.getContent());
 
-            // Update brief with publication info
-            brief.setPublishedAt(OffsetDateTime.now());
-            brief.setPublishUrl("https://github.com/" + thread.getRepositoryFullName() + "/pull/" + prNumber);
-            briefRepository.save(brief);
+        brief.setPublishedAt(OffsetDateTime.now());
+        brief.setPublishUrl("https://github.com/" + thread.getRepositoryFullName() + "/pull/" + prNumber);
+        briefRepository.save(brief);
 
-            // Update thread status
-            thread.setStatus(ThreadStatus.PUBLISHED);
-            threadRepository.save(thread);
+        thread.setStatus(ThreadStatus.PUBLISHED);
+        threadRepository.save(thread);
 
-            log.info("Published brief {} to PR #{} on {}/{}", brief.getId(), prNumber, owner, repo);
+        log.info("Published brief {} to PR #{} on {}/{}", brief.getId(), prNumber, owner, repo);
 
-            return PublishResponse.builder()
-                    .success(true)
-                    .publishUrl(brief.getPublishUrl())
-                    .message("Brief published to PR #" + prNumber)
-                    .publishedAt(brief.getPublishedAt())
-                    .build();
-
-        } catch (Exception e) {
-            log.error("Failed to publish brief to GitHub: {}", e.getMessage());
-            return PublishResponse.builder()
-                    .success(false)
-                    .message("Failed to publish: " + e.getMessage())
-                    .build();
-        }
+        return PublishResponse.builder()
+                .success(true)
+                .publishUrl(brief.getPublishUrl())
+                .message("Brief published to PR #" + prNumber)
+                .publishedAt(brief.getPublishedAt())
+                .build();
     }
 
     /**
@@ -116,10 +105,7 @@ public class BriefPublisherService {
     }
 
     private String decryptPat(GitHubConnection connection) {
-        try {
-            return patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
-        } catch (Exception e) {
-            throw new com.devbraid.github.exception.GitHubTokenInvalidException("Failed to decrypt GitHub token");
-        }
+        // ponytail: RuntimeException from PatEncryptor propagates directly
+        return patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
     }
 }

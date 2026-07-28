@@ -49,7 +49,10 @@ public class EvidenceExtractor {
 
     private List<String> match(List<String> filenames, String... patterns) {
         return filenames.stream()
-                .filter(f -> { for (String p : patterns) if (f.contains(p)) return true; return false; })
+                .filter(f -> {
+                    for (String p : patterns) if (f.contains(p)) return true;
+                    return false;
+                })
                 .toList();
     }
 }

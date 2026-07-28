@@ -22,6 +22,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
@@ -30,7 +31,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -63,6 +65,9 @@ class ChangeThreadServiceTest {
     @Mock
     private RiskAnalysisService riskAnalysisService;
 
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
+
     private User testUser;
     private GitHubConnection testConnection;
 
@@ -70,7 +75,6 @@ class ChangeThreadServiceTest {
     void setUp() {
         testUser = mock(User.class);
         when(testUser.getId()).thenReturn(UUID.randomUUID());
-        when(testUser.getEmail()).thenReturn("test@example.com");
 
         testConnection = GitHubConnection.builder()
                 .user(testUser)
@@ -84,7 +88,7 @@ class ChangeThreadServiceTest {
     @Test
     @Order(1)
     @DisplayName("createThread() persists thread with GitHub compare data")
-    void createThread_WithData_PersistsThread() {
+    void createThread_WithData_PersistsThread() throws Exception {
         when(connectionRepository.findByUserId(any())).thenReturn(Optional.of(testConnection));
         when(patEncryptor.decrypt(any(), any())).thenReturn("ghp_testToken123");
 
@@ -163,37 +167,22 @@ class ChangeThreadServiceTest {
 
     @Test
     @Order(3)
-    @DisplayName("createThread() creates thread with null diff when GitHub returns 500")
-    void createThread_GitHubError_CreatesThreadWithNullDiff() {
+    @DisplayName("createThread() propagates exception when GitHub returns 500")
+    void createThread_GitHubError_PropagatesException() {
         when(connectionRepository.findByUserId(any())).thenReturn(Optional.of(testConnection));
         when(patEncryptor.decrypt(any(), any())).thenReturn("ghp_testToken123");
         when(gitHubApiClient.compare(any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("GitHub API error: 500"));
-        when(noteRepository.findByThreadIdOrderByCreatedAtDesc(any())).thenReturn(java.util.List.of());
-
-        when(threadRepository.save(any(ChangeThread.class))).thenAnswer(invocation -> {
-            ChangeThread thread = invocation.getArgument(0);
-            var field = ChangeThread.class.getDeclaredField("id");
-            field.setAccessible(true);
-            field.set(thread, UUID.randomUUID());
-            var createdAt = ChangeThread.class.getDeclaredField("createdAt");
-            createdAt.setAccessible(true);
-            createdAt.set(thread, OffsetDateTime.now());
-            var updatedAt = ChangeThread.class.getDeclaredField("updatedAt");
-            updatedAt.setAccessible(true);
-            updatedAt.set(thread, OffsetDateTime.now());
-            return thread;
-        });
 
         CreateThreadRequest request = new CreateThreadRequest(
                 "test-owner/server-error", "feature/error", "main", "Error Test", null
         );
 
-        ThreadResponse response = threadService.createThread(testUser, request);
+        assertThatThrownBy(() -> threadService.createThread(testUser, request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("GitHub API error");
 
-        assertThat(response).isNotNull();
-        assertThat(response.getCommits()).isNull();
-        assertThat(response.getChangedFiles()).isNull();
+        verify(threadRepository, never()).save(any());
     }
 
     @Test

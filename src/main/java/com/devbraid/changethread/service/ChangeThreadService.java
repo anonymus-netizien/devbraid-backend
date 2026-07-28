@@ -15,7 +15,6 @@ import com.devbraid.github.client.GitHubApiClient;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.github.entity.GitHubConnection;
 import com.devbraid.github.exception.GitHubNotConnectedException;
-import com.devbraid.github.exception.GitHubTokenInvalidException;
 import com.devbraid.github.repository.GitHubConnectionRepository;
 import com.devbraid.github.util.PatEncryptor;
 import com.devbraid.user.entity.User;
@@ -33,6 +32,8 @@ import java.util.UUID;
 /**
  * Service for managing Change Threads.
  * Handles CRUD operations, GitHub diff fetching, and thread lifecycle.
+ * <p>
+ * All exceptions propagate to GlobalExceptionHandler — no try-catches here.
  */
 @Slf4j
 @Service
@@ -55,16 +56,14 @@ public class ChangeThreadService {
      * @return created thread response
      * @throws GitHubNotConnectedException if user has no GitHub connection
      */
-    @Transactional
-    public ThreadResponse createThread(User user, CreateThreadRequest req) {
-        // Validate GitHub connection exists
+    @Transactional(rollbackFor = JsonProcessingException.class)
+    public ThreadResponse createThread(User user, CreateThreadRequest req) throws JsonProcessingException {
         GitHubConnection connection = connectionRepository
                 .findByUserId(user.getId())
                 .orElseThrow(() -> new GitHubNotConnectedException("Connect GitHub first"));
 
         String decryptedPat = decryptPat(connection);
 
-        // Parse owner/repo from full name
         String[] parts = req.getRepositoryFullName().split("/");
         if (parts.length != 2) {
             throw new IllegalArgumentException("Invalid repository format. Use 'owner/repo'");
@@ -72,37 +71,28 @@ public class ChangeThreadService {
         String owner = parts[0];
         String repo = parts[1];
 
-        // Base branch must be provided (no getDefaultBranch in API client)
         String baseBranch = req.getBaseBranch();
         if (baseBranch == null || baseBranch.isBlank()) {
             baseBranch = "main";
         }
 
-        // Fetch diff from GitHub
+        // Fetch diff from GitHub — exception propagates if it fails
         String commitsJson = null;
         String changedFilesJson = null;
         String latestCommitSha = null;
 
-        try {
-            GitHubCompareResponse compare = gitHubApiClient.compare(
-                    decryptedPat, owner, repo, baseBranch, req.getHeadBranch()
-            );
-            if (compare != null) {
-                commitsJson = serializeToJson(compare.getCommits());
-                changedFilesJson = serializeToJson(compare.getFiles());
-                if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
-                    latestCommitSha = compare.getCommits()
-                            .get(compare.getCommits().size() - 1).getSha();
-                }
+        GitHubCompareResponse compare = gitHubApiClient.compare(
+                decryptedPat, owner, repo, baseBranch, req.getHeadBranch()
+        );
+        if (compare != null) {
+            commitsJson = serializeToJson(compare.getCommits());
+            changedFilesJson = serializeToJson(compare.getFiles());
+            if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
+                latestCommitSha = compare.getCommits()
+                        .get(compare.getCommits().size() - 1).getSha();
             }
-        } catch (com.devbraid.github.exception.GitHubTokenInvalidException
-                 | com.devbraid.github.exception.GitHubRateLimitException e) {
-            throw e; // Re-throw auth/rate-limit errors — user must act
-        } catch (Exception e) {
-            log.warn("Failed to fetch diff from GitHub: {}", e.getMessage());
         }
 
-        // Build and persist thread
         ChangeThread thread = ChangeThread.builder()
                 .user(user)
                 .repositoryFullName(req.getRepositoryFullName())
@@ -161,8 +151,8 @@ public class ChangeThreadService {
         log.info("Deleted thread {} for user {}", threadId, user.getId());
     }
 
-    @Transactional
-    public ThreadResponse refreshThread(User user, UUID threadId) {
+    @Transactional(rollbackFor = JsonProcessingException.class)
+    public ThreadResponse refreshThread(User user, UUID threadId) throws JsonProcessingException {
         ChangeThread thread = threadRepository
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
@@ -176,20 +166,17 @@ public class ChangeThreadService {
         String owner = parts[0];
         String repo = parts[1];
 
-        try {
-            GitHubCompareResponse compare = gitHubApiClient.compare(
-                    decryptedPat, owner, repo, thread.getBaseBranch(), thread.getHeadBranch()
-            );
-            if (compare != null) {
-                thread.setCommits(serializeToJson(compare.getCommits()));
-                thread.setChangedFiles(serializeToJson(compare.getFiles()));
-                if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
-                    thread.setCommitSha(compare.getCommits()
-                            .get(compare.getCommits().size() - 1).getSha());
-                }
+        // Fetch diff from GitHub — exception propagates if it fails
+        GitHubCompareResponse compare = gitHubApiClient.compare(
+                decryptedPat, owner, repo, thread.getBaseBranch(), thread.getHeadBranch()
+        );
+        if (compare != null) {
+            thread.setCommits(serializeToJson(compare.getCommits()));
+            thread.setChangedFiles(serializeToJson(compare.getFiles()));
+            if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
+                thread.setCommitSha(compare.getCommits()
+                        .get(compare.getCommits().size() - 1).getSha());
             }
-        } catch (Exception e) {
-            log.warn("Failed to refresh diff from GitHub: {}", e.getMessage());
         }
 
         thread = threadRepository.save(thread);
@@ -199,22 +186,17 @@ public class ChangeThreadService {
     /**
      * Run deterministic risk analysis on a thread.
      */
-    @Transactional
-    public ThreadResponse analyzeThread(User user, UUID threadId) {
+    @Transactional(rollbackFor = Exception.class)
+    public ThreadResponse analyzeThread(User user, UUID threadId) throws Exception {
         ChangeThread thread = threadRepository
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
 
-        // Run deterministic + AI risk analysis
         var report = riskAnalysisService.analyze(thread.getCommits(), thread.getChangedFiles());
         RiskLevel overallRisk = (RiskLevel) report.get("overallRisk");
 
-        String riskReport;
-        try {
-            riskReport = objectMapper.writeValueAsString(report);
-        } catch (Exception e) {
-            riskReport = null;
-        }
+        // Serialization failure propagates — GlobalExceptionHandler handles it
+        String riskReport = objectMapper.writeValueAsString(report);
 
         thread.setRiskLevel(overallRisk);
         thread.setRiskReport(riskReport);
@@ -268,21 +250,13 @@ public class ChangeThreadService {
                 .build();
     }
 
-    private String serializeToJson(Object obj) {
+    private String serializeToJson(Object obj) throws JsonProcessingException {
         if (obj == null) return null;
-        try {
-            return objectMapper.writeValueAsString(obj);
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize to JSON: {}", e.getMessage());
-            return null;
-        }
+        return objectMapper.writeValueAsString(obj);
     }
 
     private String decryptPat(GitHubConnection connection) {
-        try {
-            return patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
-        } catch (Exception e) {
-            throw new GitHubTokenInvalidException("Failed to decrypt GitHub token");
-        }
+        // ponytail: RuntimeException from PatEncryptor propagates directly
+        return patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
     }
 }

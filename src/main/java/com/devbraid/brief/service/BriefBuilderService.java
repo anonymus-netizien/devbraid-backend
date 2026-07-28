@@ -33,18 +33,13 @@ public class BriefBuilderService {
      * @return the generated brief response
      */
     @Transactional
-    public BriefResponse generateBrief(User user, UUID threadId) {
+    public BriefResponse generateBrief(User user, UUID threadId) throws Exception {
         ChangeThread thread = threadRepository
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
 
-        String content;
-        try {
-            content = aiProvider.analyze(buildBriefPrompt(thread));
-        } catch (Exception e) {
-            log.warn("AI brief generation failed, using template: {}", e.getMessage());
-            content = generateTemplateBrief(thread);
-        }
+        // ponytail: AI failure propagates — no graceful degradation
+        String content = aiProvider.analyze(buildBriefPrompt(thread));
 
         // Check if brief already exists
         var existingBrief = briefRepository.findByThreadId(threadId);
@@ -109,17 +104,6 @@ public class BriefBuilderService {
         prompt.append("4. **Testing Recommendations** — What to test\n");
 
         return prompt.toString();
-    }
-
-    private String generateTemplateBrief(ChangeThread thread) {
-        return "# Change Brief: " + thread.getTitle() + "\n\n" +
-                "**Repository:** " + thread.getRepositoryFullName() + "\n" +
-                "**Branch:** " + thread.getHeadBranch() + " → " + thread.getBaseBranch() + "\n" +
-                "**Risk Level:** " + (thread.getRiskLevel() != null ? thread.getRiskLevel() : "Not assessed") + "\n\n" +
-                "## Summary\n\n" +
-                (thread.getDescription() != null ? thread.getDescription() : "No description provided.") + "\n\n" +
-                "## Risk Assessment\n\n" +
-                "Risk analysis has been performed. See thread details for the full risk report.\n";
     }
 
     private BriefResponse toResponse(ChangeBrief brief) {

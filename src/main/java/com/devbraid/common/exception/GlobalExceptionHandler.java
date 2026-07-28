@@ -1,11 +1,9 @@
 package com.devbraid.common.exception;
 
+import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.common.ApiResponse;
-import com.devbraid.github.exception.GitHubAlreadyConnectedException;
-import com.devbraid.github.exception.GitHubNotFoundException;
-import com.devbraid.github.exception.GitHubNotConnectedException;
-import com.devbraid.github.exception.GitHubRateLimitException;
-import com.devbraid.github.exception.GitHubTokenInvalidException;
+import com.devbraid.github.dto.response.GitHubStatusResponse;
+import com.devbraid.github.exception.*;
 import com.devbraid.user.exception.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -14,6 +12,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -108,6 +107,16 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(GitHubTokenExpiredException.class)
+    public ResponseEntity<ApiResponse<GitHubStatusResponse>> handleGitHubTokenExpired(GitHubTokenExpiredException ex) {
+        log.warn("GlobalExceptionHandler :: GitHub token expired/invalid: {}", ex.getMessage());
+        GitHubStatusResponse response = GitHubStatusResponse.builder()
+                .connected(true)
+                .valid(false)
+                .build();
+        return ResponseEntity.ok(ApiResponse.success(ex.getMessage(), response));
+    }
+
     @ExceptionHandler(GitHubNotFoundException.class)
     public ResponseEntity<ApiResponse<?>> handleGitHubNotFound(GitHubNotFoundException ex) {
         log.warn("GlobalExceptionHandler :: GitHub resource not found: {}", ex.getMessage());
@@ -124,7 +133,26 @@ public class GlobalExceptionHandler {
         );
     }
 
+    // ── Change Thread exceptions ──
+
+    @ExceptionHandler(ThreadNotFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleThreadNotFound(ThreadNotFoundException ex) {
+        log.warn("GlobalExceptionHandler :: Thread not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
     // ── Generic exceptions ──
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<?>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        log.warn("GlobalExceptionHandler :: Type mismatch for parameter {}: {}", ex.getName(), ex.getMessage());
+        String msg = String.format("Invalid value '%s' for parameter '%s'", ex.getValue(), ex.getName());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error(msg)
+        );
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<?>> handleIllegalArgument(IllegalArgumentException ex) {

@@ -17,10 +17,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RiskFlagRules {
 
-    private final JsonArrayParser jsonParser;
-
     private static final int LARGE_DIFF_THRESHOLD = 500;
     private static final int MANY_FILES_THRESHOLD = 20;
+    private final JsonArrayParser jsonParser;
 
     public List<RiskFlagDto> evaluate(String commitsJson, String changedFilesJson) {
         List<RiskFlagDto> flags = new ArrayList<>();

@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +31,7 @@ public class RiskAnalysisService {
      * @param changedFilesJson serialized changed files JSON
      * @return combined risk report map with flags, evidence, and AI insights
      */
-    public Map<String, Object> analyze(String commitsJson, String changedFilesJson) {
+    public Map<String, Object> analyze(String commitsJson, String changedFilesJson) throws Exception {
         Map<String, Object> report = new HashMap<>();
 
         // Phase 1: Deterministic rules (always runs)
@@ -45,16 +44,10 @@ public class RiskAnalysisService {
         report.put("overallRisk", overallRisk);
         report.put("aiAnalyzed", false);
 
-        // Phase 2: AI analysis (optional, graceful degradation)
-        try {
-            String aiResult = aiProvider.analyze(buildAnalysisPrompt(commitsJson, changedFilesJson, flags));
-            report.put("aiAnalysis", aiResult);
-            report.put("aiAnalyzed", true);
-        } catch (Exception e) {
-            log.warn("AI analysis unavailable, using deterministic-only: {}", e.getMessage());
-            report.put("aiAnalysis", null);
-            report.put("aiError", "AI analysis unavailable — using deterministic rules only");
-        }
+        // Phase 2: AI analysis — exception propagates if AI is unavailable
+        String aiResult = aiProvider.analyze(buildAnalysisPrompt(commitsJson, changedFilesJson, flags));
+        report.put("aiAnalysis", aiResult);
+        report.put("aiAnalyzed", true);
 
         return report;
     }

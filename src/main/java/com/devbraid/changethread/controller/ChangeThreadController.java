@@ -36,7 +36,7 @@ public class ChangeThreadController {
     @PostMapping
     public ResponseEntity<ApiResponse<ThreadResponse>> createThread(
             @Valid @RequestBody CreateThreadRequest request,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user) throws Exception {
         log.info("Creating thread for user {} on {}", user.getEmail(), request.getRepositoryFullName());
         ThreadResponse response = threadService.createThread(user, request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -81,7 +81,7 @@ public class ChangeThreadController {
     @PostMapping("/{id}/refresh")
     public ResponseEntity<ApiResponse<ThreadResponse>> refreshThread(
             @PathVariable UUID id,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user) throws Exception {
         log.info("Refreshing thread {} for user {}", id, user.getEmail());
         ThreadResponse response = threadService.refreshThread(user, id);
         return ResponseEntity.ok(ApiResponse.success("Thread refreshed", response));
@@ -90,7 +90,7 @@ public class ChangeThreadController {
     @PostMapping("/{id}/analyze")
     public ResponseEntity<ApiResponse<ThreadResponse>> analyzeThread(
             @PathVariable UUID id,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user) throws Exception {
         log.info("Analyzing thread {} for user {}", id, user.getEmail());
         ThreadResponse response = threadService.analyzeThread(user, id);
         return ResponseEntity.ok(ApiResponse.success("Thread analyzed", response));
@@ -99,7 +99,7 @@ public class ChangeThreadController {
     @PostMapping("/{id}/brief")
     public ResponseEntity<ApiResponse<BriefResponse>> generateBrief(
             @PathVariable UUID id,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user) throws Exception {
         log.info("Generating brief for thread {} by user {}", id, user.getEmail());
         BriefResponse response = briefBuilderService.generateBrief(user, id);
         return ResponseEntity.ok(ApiResponse.success("Brief generated", response));
