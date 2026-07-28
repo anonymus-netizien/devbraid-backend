@@ -1,7 +1,9 @@
 package com.devbraid.changethread.controller;
 
 import com.devbraid.brief.dto.BriefResponse;
+import com.devbraid.brief.dto.PublishResponse;
 import com.devbraid.brief.service.BriefBuilderService;
+import com.devbraid.brief.service.BriefPublisherService;
 import com.devbraid.changethread.dto.request.CreateThreadRequest;
 import com.devbraid.changethread.dto.request.UpdateThreadRequest;
 import com.devbraid.changethread.dto.response.ThreadResponse;
@@ -29,6 +31,7 @@ public class ChangeThreadController {
 
     private final ChangeThreadService threadService;
     private final BriefBuilderService briefBuilderService;
+    private final BriefPublisherService briefPublisherService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<ThreadResponse>> createThread(
@@ -108,5 +111,15 @@ public class ChangeThreadController {
             @AuthenticationPrincipal User user) {
         BriefResponse response = briefBuilderService.getBrief(user, id);
         return ResponseEntity.ok(ApiResponse.success("Brief retrieved", response));
+    }
+
+    @PostMapping("/{id}/publish")
+    public ResponseEntity<ApiResponse<PublishResponse>> publishBrief(
+            @PathVariable UUID id,
+            @RequestParam(name = "prNumber") int prNumber,
+            @AuthenticationPrincipal User user) {
+        log.info("Publishing brief for thread {} to PR #{} by user {}", id, prNumber, user.getEmail());
+        PublishResponse response = briefPublisherService.publishToGitHub(user, id, prNumber);
+        return ResponseEntity.ok(ApiResponse.success("Publish result", response));
     }
 }
