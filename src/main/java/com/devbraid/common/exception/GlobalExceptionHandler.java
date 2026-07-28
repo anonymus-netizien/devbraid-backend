@@ -2,6 +2,7 @@ package com.devbraid.common.exception;
 
 import com.devbraid.common.ApiResponse;
 import com.devbraid.github.exception.GitHubAlreadyConnectedException;
+import com.devbraid.github.exception.GitHubNotFoundException;
 import com.devbraid.github.exception.GitHubNotConnectedException;
 import com.devbraid.github.exception.GitHubRateLimitException;
 import com.devbraid.github.exception.GitHubTokenInvalidException;
@@ -103,6 +104,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleGitHubTokenInvalid(GitHubTokenInvalidException ex) {
         log.warn("GlobalExceptionHandler :: GitHub token invalid: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(GitHubNotFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleGitHubNotFound(GitHubNotFoundException ex) {
+        log.warn("GlobalExceptionHandler :: GitHub resource not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 ApiResponse.error(ex.getMessage())
         );
     }
