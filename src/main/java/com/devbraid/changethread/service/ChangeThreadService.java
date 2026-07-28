@@ -27,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -76,20 +77,31 @@ public class ChangeThreadService {
             baseBranch = "main";
         }
 
-        // Fetch diff from GitHub — exception propagates if it fails
+        // Fetch diff from GitHub — single branch vs cross-branch compare
         String commitsJson = null;
         String changedFilesJson = null;
         String latestCommitSha = null;
 
-        GitHubCompareResponse compare = gitHubApiClient.compare(
-                decryptedPat, owner, repo, baseBranch, req.getHeadBranch()
-        );
-        if (compare != null) {
-            commitsJson = serializeToJson(compare.getCommits());
-            changedFilesJson = serializeToJson(compare.getFiles());
-            if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
-                latestCommitSha = compare.getCommits()
-                        .get(compare.getCommits().size() - 1).getSha();
+        if (req.getHeadBranch().equalsIgnoreCase(baseBranch)) {
+            // Single-Branch Mode: fetch recent commits directly for this branch
+            List<com.devbraid.github.dto.response.CommitSummaryDto> branchCommits =
+                    gitHubApiClient.listCommits(decryptedPat, owner, repo, req.getHeadBranch(), 20);
+            if (branchCommits != null && !branchCommits.isEmpty()) {
+                commitsJson = serializeToJson(branchCommits);
+                latestCommitSha = branchCommits.get(0).getSha();
+            }
+        } else {
+            // Cross-Branch Compare Mode
+            GitHubCompareResponse compare = gitHubApiClient.compare(
+                    decryptedPat, owner, repo, baseBranch, req.getHeadBranch()
+            );
+            if (compare != null) {
+                commitsJson = serializeToJson(compare.getCommits());
+                changedFilesJson = serializeToJson(compare.getFiles());
+                if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
+                    latestCommitSha = compare.getCommits()
+                            .get(compare.getCommits().size() - 1).getSha();
+                }
             }
         }
 

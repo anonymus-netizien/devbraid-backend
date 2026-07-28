@@ -4,6 +4,7 @@ import com.devbraid.github.dto.internal.RawGitHubBranch;
 import com.devbraid.github.dto.internal.RawGitHubOrg;
 import com.devbraid.github.dto.internal.RawGitHubRepo;
 import com.devbraid.github.dto.internal.RawGitHubUser;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -93,6 +94,12 @@ public class GitHubApiClient {
     public GitHubCompareResponse compare(String token, String owner, String repo, String base, String head) {
         String path = "/repos/" + owner + "/" + repo + "/compare/" + base + "..." + head;
         return get(path, token, GitHubCompareResponse.class);
+    }
+
+    public List<CommitSummaryDto> listCommits(String token, String owner, String repo, String branch, int perPage) {
+        String path = "/repos/" + owner + "/" + repo + "/commits?sha=" + branch + "&per_page=" + perPage;
+        return getList(path, token, new TypeReference<>() {
+        });
     }
 
     /**
@@ -189,6 +196,11 @@ public class GitHubApiClient {
             if (status == 404) {
                 throw new com.devbraid.github.exception.GitHubNotFoundException(
                         "GitHub resource not found. Check repo and branch names."
+                );
+            }
+            if (status == 422) {
+                throw new IllegalArgumentException(
+                        "GitHub API rejected request. Check branch names or repository permissions."
                 );
             }
             if (status != 200) {
