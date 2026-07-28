@@ -2,10 +2,13 @@ package com.devbraid.changethread.service;
 
 import com.devbraid.changethread.dto.request.CreateThreadRequest;
 import com.devbraid.changethread.dto.request.UpdateThreadRequest;
+import com.devbraid.changethread.dto.response.NoteResponse;
 import com.devbraid.changethread.dto.response.ThreadResponse;
 import com.devbraid.changethread.entity.ChangeThread;
+import com.devbraid.changethread.entity.DecisionNote;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
+import com.devbraid.changethread.repository.DecisionNoteRepository;
 import com.devbraid.github.client.GitHubApiClient;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.github.entity.GitHubConnection;
@@ -35,6 +38,7 @@ import java.util.UUID;
 public class ChangeThreadService {
 
     private final ChangeThreadRepository threadRepository;
+    private final DecisionNoteRepository noteRepository;
     private final GitHubConnectionRepository connectionRepository;
     private final GitHubApiClient gitHubApiClient;
     private final PatEncryptor patEncryptor;
@@ -192,6 +196,11 @@ public class ChangeThreadService {
     // ── Private helpers ──────────────────────────────────────────────
 
     private ThreadResponse toResponse(ChangeThread thread) {
+        var notes = noteRepository.findByThreadIdOrderByCreatedAtDesc(thread.getId())
+                .stream()
+                .map(this::toNoteResponse)
+                .toList();
+
         return ThreadResponse.builder()
                 .id(thread.getId())
                 .repositoryFullName(thread.getRepositoryFullName())
@@ -206,8 +215,25 @@ public class ChangeThreadService {
                 .changedFiles(thread.getChangedFiles())
                 .riskLevel(thread.getRiskLevel())
                 .riskReport(thread.getRiskReport())
+                .notes(notes)
                 .createdAt(thread.getCreatedAt())
                 .updatedAt(thread.getUpdatedAt())
+                .build();
+    }
+
+    private NoteResponse toNoteResponse(DecisionNote note) {
+        return NoteResponse.builder()
+                .id(note.getId())
+                .threadId(note.getThread().getId())
+                .authorId(note.getAuthor().getId())
+                .context(note.getContext())
+                .contextRef(note.getContextRef())
+                .decision(note.getDecision())
+                .rationale(note.getRationale())
+                .alternatives(note.getAlternatives())
+                .impact(note.getImpact())
+                .status(note.getStatus())
+                .createdAt(note.getCreatedAt())
                 .build();
     }
 

@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -30,6 +31,7 @@ public class ThreadResponse {
     private String changedFiles;
     private RiskLevel riskLevel;
     private String riskReport;
+    private List<NoteResponse> notes;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }
