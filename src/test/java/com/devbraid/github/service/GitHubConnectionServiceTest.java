@@ -10,6 +10,7 @@ import com.devbraid.github.dto.response.GitRepositoryDto;
 import com.devbraid.github.entity.GitHubConnection;
 import com.devbraid.github.exception.GitHubAlreadyConnectedException;
 import com.devbraid.github.exception.GitHubNotConnectedException;
+import com.devbraid.github.exception.GitHubTokenExpiredException;
 import com.devbraid.github.exception.GitHubTokenInvalidException;
 import com.devbraid.github.repository.GitHubConnectionRepository;
 import com.devbraid.github.util.PatEncryptor;
@@ -113,11 +114,10 @@ class GitHubConnectionServiceTest {
     void connect_InvalidPat_ThrowsException() {
         when(connectionRepository.existsByUserId(USER_ID)).thenReturn(false);
         when(gitHubApiClient.validateToken(RAW_PAT))
-                .thenThrow(new RuntimeException("Bad credentials"));
+                .thenThrow(new GitHubTokenInvalidException("Bad credentials"));
 
         assertThatThrownBy(() -> service.connect(RAW_PAT, testUser))
-                .isInstanceOf(GitHubTokenInvalidException.class)
-                .hasMessageContaining("Invalid or expired GitHub token");
+                .isInstanceOf(GitHubTokenInvalidException.class);
 
         verify(connectionRepository).existsByUserId(USER_ID);
         verify(gitHubApiClient).validateToken(RAW_PAT);
@@ -148,25 +148,6 @@ class GitHubConnectionServiceTest {
     }
 
     @Test
-    @DisplayName("getStatus() should return connected when valid token")
-    void getStatus_Connected_ReturnsConnected() {
-        when(connectionRepository.findByUserId(USER_ID)).thenReturn(Optional.of(testConnection));
-        when(patEncryptor.decrypt(ENCRYPTED_PAT, IV)).thenReturn(RAW_PAT);
-        when(gitHubApiClient.validateToken(RAW_PAT)).thenReturn(new RawGitHubUser());
-
-        GitHubStatusResponse response = service.getStatus(testUser);
-
-        assertThat(response.isConnected()).isTrue();
-        assertThat(response.isValid()).isTrue();
-        assertThat(response.getGithubUsername()).isEqualTo(GITHUB_USERNAME);
-
-        verify(connectionRepository).findByUserId(USER_ID);
-        verify(patEncryptor).decrypt(ENCRYPTED_PAT, IV);
-        verify(gitHubApiClient).validateToken(RAW_PAT);
-        verify(connectionRepository, never()).save(any());
-    }
-
-    @Test
     @DisplayName("getStatus() should return disconnected when no connection exists")
     void getStatus_NoConnection_ReturnsDisconnected() {
         when(connectionRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
@@ -181,20 +162,34 @@ class GitHubConnectionServiceTest {
     }
 
     @Test
-    @DisplayName("getStatus() should return invalid when token is invalid")
-    void getStatus_InvalidToken_ReturnsInvalid() {
+    @DisplayName("getStatus() should return connected when token is valid")
+    void getStatus_Connected_ReturnsConnected() {
         when(connectionRepository.findByUserId(USER_ID)).thenReturn(Optional.of(testConnection));
         when(patEncryptor.decrypt(ENCRYPTED_PAT, IV)).thenReturn(RAW_PAT);
-        when(gitHubApiClient.validateToken(RAW_PAT))
-                .thenThrow(new RuntimeException("Bad credentials"));
+        when(gitHubApiClient.validateToken(RAW_PAT)).thenReturn(new RawGitHubUser());
 
         GitHubStatusResponse response = service.getStatus(testUser);
 
         assertThat(response.isConnected()).isTrue();
-        assertThat(response.isValid()).isFalse();
+        assertThat(response.isValid()).isTrue();
         assertThat(response.getGithubUsername()).isEqualTo(GITHUB_USERNAME);
 
-        verify(connectionRepository, never()).save(any());
+        verify(connectionRepository).findByUserId(USER_ID);
+        verify(patEncryptor).decrypt(ENCRYPTED_PAT, IV);
+        verify(gitHubApiClient).validateToken(RAW_PAT);
+    }
+
+    @Test
+    @DisplayName("getStatus() should throw GitHubTokenExpiredException when token is invalid")
+    void getStatus_InvalidToken_ThrowsException() {
+        when(connectionRepository.findByUserId(USER_ID)).thenReturn(Optional.of(testConnection));
+        when(patEncryptor.decrypt(ENCRYPTED_PAT, IV)).thenReturn(RAW_PAT);
+        when(gitHubApiClient.validateToken(RAW_PAT))
+                .thenThrow(new GitHubTokenInvalidException("Bad credentials"));
+
+        assertThatThrownBy(() -> service.getStatus(testUser))
+                .isInstanceOf(GitHubTokenExpiredException.class)
+                .hasMessageContaining("token expired or invalid");
     }
 
     @Test
@@ -210,8 +205,8 @@ class GitHubConnectionServiceTest {
     }
 
     @Test
-    @DisplayName("validateOnLogin() should return connected when valid token")
-    void validateOnLogin_ValidToken_ReturnsConnected() {
+    @DisplayName("validateOnLogin() should return connected when token is valid")
+    void validateOnLogin_Connected_ReturnsConnected() {
         when(connectionRepository.findByUserId(USER_ID)).thenReturn(Optional.of(testConnection));
         when(patEncryptor.decrypt(ENCRYPTED_PAT, IV)).thenReturn(RAW_PAT);
         when(gitHubApiClient.validateToken(RAW_PAT)).thenReturn(new RawGitHubUser());
@@ -222,21 +217,23 @@ class GitHubConnectionServiceTest {
         assertThat(response.isConnected()).isTrue();
         assertThat(response.isValid()).isTrue();
         assertThat(response.getGithubUsername()).isEqualTo(GITHUB_USERNAME);
+
+        verify(connectionRepository).findByUserId(USER_ID);
+        verify(patEncryptor).decrypt(ENCRYPTED_PAT, IV);
+        verify(gitHubApiClient).validateToken(RAW_PAT);
     }
 
     @Test
-    @DisplayName("validateOnLogin() should return invalid when token is invalid")
-    void validateOnLogin_InvalidToken_ReturnsInvalid() {
+    @DisplayName("validateOnLogin() should throw GitHubTokenExpiredException when token is invalid")
+    void validateOnLogin_InvalidToken_ThrowsException() {
         when(connectionRepository.findByUserId(USER_ID)).thenReturn(Optional.of(testConnection));
         when(patEncryptor.decrypt(ENCRYPTED_PAT, IV)).thenReturn(RAW_PAT);
         when(gitHubApiClient.validateToken(RAW_PAT))
-                .thenThrow(new RuntimeException("Bad credentials"));
+                .thenThrow(new GitHubTokenInvalidException("Bad credentials"));
 
-        GitHubStatusResponse response = service.validateOnLogin(testUser);
-
-        assertThat(response).isNotNull();
-        assertThat(response.isConnected()).isTrue();
-        assertThat(response.isValid()).isFalse();
+        assertThatThrownBy(() -> service.validateOnLogin(testUser))
+                .isInstanceOf(GitHubTokenExpiredException.class)
+                .hasMessageContaining("token expired or invalid");
     }
 
     @Test

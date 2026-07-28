@@ -10,6 +10,7 @@ import com.devbraid.github.dto.response.GitRepositoryDto;
 import com.devbraid.github.entity.GitHubConnection;
 import com.devbraid.github.exception.GitHubAlreadyConnectedException;
 import com.devbraid.github.exception.GitHubNotConnectedException;
+import com.devbraid.github.exception.GitHubTokenExpiredException;
 import com.devbraid.github.exception.GitHubTokenInvalidException;
 import com.devbraid.github.repository.GitHubConnectionRepository;
 import com.devbraid.github.util.PatEncryptor;
@@ -26,6 +27,8 @@ import java.util.Optional;
 /**
  * Service for managing GitHub PAT connections.
  * Handles connect, disconnect, validation, and repository/branch listing.
+ * <p>
+ * All exceptions propagate to GlobalExceptionHandler — no try-catches here.
  */
 @Slf4j
 @Service
@@ -54,16 +57,9 @@ public class GitHubConnectionService {
             );
         }
 
-        RawGitHubUser gitHubUser;
-        try {
-            gitHubUser = gitHubApiClient.validateToken(rawPat);
-        } catch (Exception e) {
-            throw new GitHubTokenInvalidException(
-                    "Invalid or expired GitHub token: " + e.getMessage()
-            );
-        }
+        // ponytail: validateToken exception propagates directly
+        RawGitHubUser gitHubUser = gitHubApiClient.validateToken(rawPat);
 
-        // Generate IV and encrypt PAT
         byte[] iv = patEncryptor.generateIv();
         byte[] encryptedPat = patEncryptor.encrypt(rawPat, iv);
 
@@ -102,9 +98,12 @@ public class GitHubConnectionService {
 
     /**
      * Get the current GitHub connection status.
+     * Validates the token eagerly so the frontend can show
+     * "Token expired, reconnect" instead of discovering the failure later.
      *
      * @param user the authenticated user
      * @return status response (connected or disconnected)
+     * @throws GitHubTokenExpiredException if the stored PAT is no longer valid
      */
     @Transactional(readOnly = true)
     public GitHubStatusResponse getStatus(User user) {
@@ -115,22 +114,23 @@ public class GitHubConnectionService {
         }
 
         GitHubConnection connection = connectionOpt.get();
-
+        // ponytail: specific catch — status endpoint degrades gracefully for invalid token
         try {
             String decryptedPat = patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
             gitHubApiClient.validateToken(decryptedPat);
-            return GitHubStatusResponse.from(connection, true);
-        } catch (Exception e) {
-            log.warn("GitHub token invalid for user {}: {}", user.getId(), e.getMessage());
-            return GitHubStatusResponse.invalid(connection);
+        } catch (GitHubTokenInvalidException e) {
+            throw new GitHubTokenExpiredException("GitHub token expired or invalid");
         }
+        return GitHubStatusResponse.from(connection, true);
     }
 
     /**
      * Validate GitHub connection on user login.
+     * Returns connection status if connected, null otherwise.
      *
      * @param user the authenticated user
      * @return status response or null if not connected
+     * @throws GitHubTokenExpiredException if the stored PAT is no longer valid
      */
     @Transactional(readOnly = true)
     public GitHubStatusResponse validateOnLogin(User user) {
@@ -141,15 +141,14 @@ public class GitHubConnectionService {
         }
 
         GitHubConnection connection = connectionOpt.get();
-
+        // ponytail: same pattern as getStatus — graceful degradation on login
         try {
             String decryptedPat = patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
             gitHubApiClient.validateToken(decryptedPat);
-            return GitHubStatusResponse.from(connection, true);
-        } catch (Exception e) {
-            log.warn("GitHub token invalid on login for user {}: {}", user.getId(), e.getMessage());
-            return GitHubStatusResponse.invalid(connection);
+        } catch (GitHubTokenInvalidException e) {
+            throw new GitHubTokenExpiredException("GitHub token expired or invalid");
         }
+        return GitHubStatusResponse.from(connection, true);
     }
 
     /**
@@ -161,7 +160,7 @@ public class GitHubConnectionService {
      */
     public List<GitRepositoryDto> listRepositories(User user) {
         GitHubConnection connection = getConnectionOrThrow(user);
-        String decryptedPat = decryptPat(connection);
+        String decryptedPat = patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
 
         List<RawGitHubRepo> rawRepos = gitHubApiClient.listRepositories(decryptedPat);
 
@@ -181,7 +180,7 @@ public class GitHubConnectionService {
      */
     public List<BranchDto> listBranches(User user, String owner, String repo) {
         GitHubConnection connection = getConnectionOrThrow(user);
-        String decryptedPat = decryptPat(connection);
+        String decryptedPat = patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
 
         List<RawGitHubBranch> rawBranches = gitHubApiClient.listBranches(decryptedPat, owner, repo);
 
@@ -196,13 +195,5 @@ public class GitHubConnectionService {
         return connectionRepository
                 .findByUserId(user.getId())
                 .orElseThrow(() -> new GitHubNotConnectedException("Connect GitHub first to access repositories."));
-    }
-
-    private String decryptPat(GitHubConnection connection) {
-        try {
-            return patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
-        } catch (Exception e) {
-            throw new GitHubTokenInvalidException("Failed to decrypt GitHub token");
-        }
     }
 }

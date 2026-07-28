@@ -95,6 +95,38 @@ public class GitHubApiClient {
         return get(path, token, GitHubCompareResponse.class);
     }
 
+    /**
+     * Create a comment on a pull request.
+     */
+    public void createPullRequestComment(String token, String owner, String repo, int prNumber, String body) {
+        String path = "/repos/" + owner + "/" + repo + "/issues/" + prNumber + "/comments";
+        try {
+            String jsonBody = objectMapper.writeValueAsString(new java.util.LinkedHashMap<>() {{
+                put("body", body);
+            }});
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(apiBase + path))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Accept", "application/vnd.github+json")
+                    .header("Content-Type", "application/json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .header("User-Agent", "DevBraid")
+                    .timeout(TIMEOUT)
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 201) {
+                log.warn("GitHub API returned {} for PR comment: {}", response.statusCode(), response.body());
+                throw new RuntimeException("GitHub API error: " + response.statusCode());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create PR comment", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("GitHub API request interrupted", e);
+        }
+    }
+
     // ── Private HTTP helpers ──
 
     private <T> T get(String path, String token, Class<T> responseType) {

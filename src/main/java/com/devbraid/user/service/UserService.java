@@ -137,9 +137,8 @@ public class UserService {
             throw new RefreshTokenRevokedException("Refresh token has been revoked");
         }
 
-        // Revoke old token (rotation)
-        storedToken.revoke();
-        refreshTokenRepository.save(storedToken);
+        // Delete old token on rotation to prevent duplicate build-up
+        refreshTokenRepository.delete(storedToken);
 
         // Issue new tokens
         String userId = jwtTokenProvider.getUserId(refreshToken);
@@ -160,10 +159,9 @@ public class UserService {
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
-        storedToken.revoke();
-        refreshTokenRepository.save(storedToken);
+        refreshTokenRepository.delete(storedToken);
 
-        log.info("UserService :: Refresh token revoked for user");
+        log.info("UserService :: Refresh token removed for user");
     }
 
     private LoginResponse buildLoginResponse(User user) {

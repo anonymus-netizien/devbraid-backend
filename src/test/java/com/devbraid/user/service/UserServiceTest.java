@@ -197,8 +197,8 @@ class UserServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getAccessToken()).isEqualTo("new-access");
         assertThat(response.getRefreshToken()).isEqualTo("new-refresh");
-        assertThat(storedToken.isRevoked()).isTrue();
-        verify(refreshTokenRepository, times(2)).save(any(RefreshToken.class));
+        verify(refreshTokenRepository).delete(storedToken);
+        verify(refreshTokenRepository, times(1)).save(any(RefreshToken.class));
     }
 
     @Test
@@ -217,18 +217,16 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("logout revokes the refresh token")
+    @DisplayName("logout deletes the refresh token")
     void logout_RevokesToken() {
         User user = User.builder().id(USER_ID).fullName(FULL_NAME).email(EMAIL).build();
         RefreshToken storedToken = RefreshToken.builder().tokenHash("abc123").user(user).build();
 
         when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(storedToken));
-        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         userService.logout(REFRESH_TOKEN);
 
-        assertThat(storedToken.isRevoked()).isTrue();
-        verify(refreshTokenRepository).save(storedToken);
+        verify(refreshTokenRepository).delete(storedToken);
     }
 
     @Test
