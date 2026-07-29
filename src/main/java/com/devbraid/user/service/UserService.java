@@ -3,6 +3,8 @@ package com.devbraid.user.service;
 import com.devbraid.common.util.TokenHasher;
 import com.devbraid.security.JwtTokenProvider;
 import com.devbraid.user.dto.request.RegisterRequest;
+import com.devbraid.user.dto.request.UpdatePasswordRequest;
+import com.devbraid.user.dto.request.UpdateProfileRequest;
 import com.devbraid.user.dto.response.LoginResponse;
 import com.devbraid.user.dto.response.UserProfileResponse;
 import com.devbraid.user.entity.RefreshToken;
@@ -103,6 +105,31 @@ public class UserService {
         LoginResponse response = buildLoginResponse(user);
         persistRefreshToken(response.getRefreshToken(), user);
         return response;
+    }
+
+    public UserProfileResponse updateProfile(User user, UpdateProfileRequest request) {
+        log.info("UserService :: Update profile for user {}", user.getEmail());
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName());
+            userRepository.save(user);
+            log.info("UserService :: Profile updated for user {}", user.getId());
+        }
+
+        return getUserProfile(user.getId().toString());
+    }
+
+    public void changePassword(User user, UpdatePasswordRequest request) {
+        log.info("UserService :: Change password for user {}", user.getEmail());
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new InvalidCredentialsException("Current password is incorrect");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        log.info("UserService :: Password changed for user {}", user.getId());
     }
 
     public UserProfileResponse getUserProfile(String userId) {

@@ -9,11 +9,16 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Set;
 
 @Component
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class LoggingFilter implements Filter {
+
+    private static final Set<String> SENSITIVE_HEADERS = Set.of(
+            "authorization", "cookie", "x-api-key", "set-cookie"
+    );
 
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain chain)
@@ -39,7 +44,9 @@ public class LoggingFilter implements Filter {
                 java.util.Collections.list(request.getHeaderNames()).stream()
                         .collect(java.util.stream.Collectors.toMap(
                                 h -> h,
-                                h -> String.join(",", java.util.Collections.list(request.getHeaders(h))))),
+                                h -> SENSITIVE_HEADERS.contains(h.toLowerCase())
+                                        ? "[REDACTED]"
+                                        : String.join(",", java.util.Collections.list(request.getHeaders(h))))),
                 request.getHeader("Host"),
                 request.getQueryString() != null ? request.getQueryString() : "(none)",
                 LocalDateTime.now()

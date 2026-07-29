@@ -83,6 +83,24 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", response));
     }
 
+    @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> updateProfile(
+            @Valid @RequestBody UpdateProfileRequest request,
+            @AuthenticationPrincipal User user) {
+        log.info("AuthController :: Updating profile for user {}", user.getEmail());
+        UserProfileResponse profile = userService.updateProfile(user, request);
+        return ResponseEntity.ok(ApiResponse.success("Profile updated", profile));
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @Valid @RequestBody UpdatePasswordRequest request,
+            @AuthenticationPrincipal User user) {
+        log.info("AuthController :: Changing password for user {}", user.getEmail());
+        userService.changePassword(user, request);
+        return ResponseEntity.ok(ApiResponse.success("Password changed", null));
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request) {
         log.info("AuthController :: Logout request");

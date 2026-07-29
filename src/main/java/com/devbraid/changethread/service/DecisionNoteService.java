@@ -2,6 +2,7 @@ package com.devbraid.changethread.service;
 
 import com.devbraid.changethread.dto.request.CreateNoteRequest;
 import com.devbraid.changethread.dto.request.UpdateNoteRequest;
+import com.devbraid.changethread.dto.response.NoteListItemResponse;
 import com.devbraid.changethread.dto.response.NoteResponse;
 import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.entity.DecisionNote;
@@ -12,6 +13,8 @@ import com.devbraid.changethread.repository.DecisionNoteRepository;
 import com.devbraid.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +57,12 @@ public class DecisionNoteService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<NoteListItemResponse> listAllNotes(User user, Pageable pageable) {
+        return noteRepository.findAllByUserId(user.getId(), pageable)
+                .map(this::toListItemResponse);
     }
 
     @Transactional
@@ -108,6 +117,22 @@ public class DecisionNoteService {
                 .rationale(note.getRationale())
                 .alternatives(note.getAlternatives())
                 .impact(note.getImpact())
+                .status(note.getStatus())
+                .createdAt(note.getCreatedAt())
+                .build();
+    }
+
+    private NoteListItemResponse toListItemResponse(DecisionNote note) {
+        return NoteListItemResponse.builder()
+                .id(note.getId())
+                .threadId(note.getThread().getId())
+                .threadTitle(note.getThread().getTitle())
+                .repositoryFullName(note.getThread().getRepositoryFullName())
+                .decision(note.getDecision())
+                .rationale(note.getRationale())
+                .alternatives(note.getAlternatives())
+                .impact(note.getImpact())
+                .context(note.getContext())
                 .status(note.getStatus())
                 .createdAt(note.getCreatedAt())
                 .build();

@@ -1,16 +1,20 @@
 package com.devbraid.brief.service;
 
 import com.devbraid.ai.service.AIProvider;
+import com.devbraid.brief.dto.BriefListItemResponse;
 import com.devbraid.brief.dto.BriefResponse;
 import com.devbraid.brief.entity.ChangeBrief;
 import com.devbraid.brief.repository.ChangeBriefRepository;
 import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.entity.ThreadStatus;
+import com.devbraid.changethread.exception.BriefNotFoundException;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,6 +72,28 @@ public class BriefBuilderService {
     }
 
     /**
+     * Get paginated list of all briefs for the current user.
+     */
+    @Transactional(readOnly = true)
+    public Page<BriefListItemResponse> listBriefsByUser(User user, Pageable pageable) {
+        return briefRepository.findAllByUserId(user.getId(), pageable)
+                .map(this::toListItemResponse);
+    }
+
+    /**
+     * Get a brief by its ID with ownership verification.
+     */
+    @Transactional(readOnly = true)
+    public BriefResponse getBriefById(User user, UUID briefId) {
+        ChangeBrief brief = briefRepository.findById(briefId)
+                .orElseThrow(() -> new BriefNotFoundException("Brief not found"));
+        if (!brief.getThread().getUser().getId().equals(user.getId())) {
+            throw new BriefNotFoundException("Brief not found");
+        }
+        return toResponse(brief);
+    }
+
+    /**
      * Get existing brief for a thread.
      */
     @Transactional(readOnly = true)
@@ -113,6 +139,21 @@ public class BriefBuilderService {
                 .content(brief.getContent())
                 .publishedToGithub(brief.getPublishedAt() != null)
                 .publishUrl(brief.getPublishUrl())
+                .createdAt(brief.getCreatedAt())
+                .build();
+    }
+
+    private BriefListItemResponse toListItemResponse(ChangeBrief brief) {
+        ChangeThread thread = brief.getThread();
+        return BriefListItemResponse.builder()
+                .id(brief.getId())
+                .threadId(thread.getId())
+                .threadTitle(thread.getTitle())
+                .repositoryFullName(thread.getRepositoryFullName())
+                .headBranch(thread.getHeadBranch())
+                .baseBranch(thread.getBaseBranch())
+                .threadStatus(thread.getStatus())
+                .publishedToGithub(brief.getPublishedAt() != null)
                 .createdAt(brief.getCreatedAt())
                 .build();
     }

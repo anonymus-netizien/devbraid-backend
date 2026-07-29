@@ -1,6 +1,7 @@
 package com.devbraid.analysis.service;
 
 import com.devbraid.analysis.dto.RiskFlagDto;
+import com.devbraid.analysis.util.JsonParseUtils;
 import com.devbraid.changethread.entity.RiskLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,9 +9,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Deterministic risk evaluation rules for code changes.
+ * Uses shared JsonParseUtils for JSON parsing.
  */
 @Slf4j
 @Component
@@ -19,15 +22,17 @@ public class RiskFlagRules {
 
     private static final int LARGE_DIFF_THRESHOLD = 500;
     private static final int MANY_FILES_THRESHOLD = 20;
-    private final JsonArrayParser jsonParser;
+    private final JsonParseUtils jsonParseUtils;
 
     public List<RiskFlagDto> evaluate(String commitsJson, String changedFilesJson) {
         List<RiskFlagDto> flags = new ArrayList<>();
 
-        List<FileData> files = jsonParser.parseArray(changedFilesJson, this::mapFile);
-        List<CommitData> commits = jsonParser.parseArray(commitsJson, this::mapCommit);
+        List<Map<String, Object>> files = jsonParseUtils.parseArray(changedFilesJson);
+        List<Map<String, Object>> commits = jsonParseUtils.parseArray(commitsJson);
 
-        int totalLinesChanged = files.stream().mapToInt(f -> f.additions + f.deletions).sum();
+        int totalLinesChanged = files.stream()
+                .mapToInt(f -> jsonParseUtils.getInt(f, "additions") + jsonParseUtils.getInt(f, "deletions"))
+                .sum();
 
         if (totalLinesChanged > LARGE_DIFF_THRESHOLD) {
             flags.add(RiskFlagDto.builder()
@@ -46,8 +51,12 @@ public class RiskFlagRules {
         }
 
         List<String> securityFiles = files.stream()
-                .filter(f -> f.filename.contains("/security/") || f.filename.contains("/auth/") || f.filename.contains("/crypto/"))
-                .map(f -> f.filename).toList();
+                .filter(f -> {
+                    String name = jsonParseUtils.getString(f, "filename");
+                    return name != null && (name.contains("/security/") || name.contains("/auth/") || name.contains("/crypto/"));
+                })
+                .map(f -> jsonParseUtils.getString(f, "filename"))
+                .toList();
         if (!securityFiles.isEmpty()) {
             flags.add(RiskFlagDto.builder()
                     .rule("securityPaths").severity(RiskLevel.HIGH)
@@ -56,9 +65,12 @@ public class RiskFlagRules {
         }
 
         boolean hasTestFiles = files.stream()
-                .anyMatch(f -> f.filename.endsWith("Test.java") || f.filename.endsWith("Test.ts")
-                        || f.filename.endsWith(".test.java") || f.filename.endsWith(".test.ts")
-                        || f.filename.contains("/test/") || f.filename.contains("/__tests__/"));
+                .anyMatch(f -> {
+                    String name = jsonParseUtils.getString(f, "filename");
+                    return name != null && (name.endsWith("Test.java") || name.endsWith("Test.ts")
+                            || name.endsWith(".test.java") || name.endsWith(".test.ts")
+                            || name.contains("/test/") || name.contains("/__tests__/"));
+                });
         if (!hasTestFiles && !files.isEmpty()) {
             flags.add(RiskFlagDto.builder()
                     .rule("noTests").severity(RiskLevel.LOW)
@@ -68,8 +80,12 @@ public class RiskFlagRules {
         }
 
         List<String> configFiles = files.stream()
-                .filter(f -> f.filename.contains("/config/") || (f.filename.contains("application") && f.filename.endsWith(".yml")))
-                .map(f -> f.filename).toList();
+                .filter(f -> {
+                    String name = jsonParseUtils.getString(f, "filename");
+                    return name != null && (name.contains("/config/") || (name.contains("application") && name.endsWith(".yml")));
+                })
+                .map(f -> jsonParseUtils.getString(f, "filename"))
+                .toList();
         if (!configFiles.isEmpty()) {
             flags.add(RiskFlagDto.builder()
                     .rule("configChanges").severity(RiskLevel.LOW)
@@ -78,8 +94,12 @@ public class RiskFlagRules {
         }
 
         List<String> migrationFiles = files.stream()
-                .filter(f -> f.filename.matches(".*V\\d+__.*\\.sql"))
-                .map(f -> f.filename).toList();
+                .filter(f -> {
+                    String name = jsonParseUtils.getString(f, "filename");
+                    return name != null && name.matches(".*V\\d+__.*\\.sql");
+                })
+                .map(f -> jsonParseUtils.getString(f, "filename"))
+                .toList();
         if (!migrationFiles.isEmpty()) {
             flags.add(RiskFlagDto.builder()
                     .rule("migrationFiles").severity(RiskLevel.MEDIUM)
@@ -88,9 +108,13 @@ public class RiskFlagRules {
         }
 
         List<String> dependencyFiles = files.stream()
-                .filter(f -> f.filename.equals("pom.xml") || f.filename.equals("package.json")
-                        || f.filename.equals("package-lock.json") || f.filename.equals("yarn.lock"))
-                .map(f -> f.filename).toList();
+                .filter(f -> {
+                    String name = jsonParseUtils.getString(f, "filename");
+                    return name != null && (name.equals("pom.xml") || name.equals("package.json")
+                            || name.equals("package-lock.json") || name.equals("yarn.lock"));
+                })
+                .map(f -> jsonParseUtils.getString(f, "filename"))
+                .toList();
         if (!dependencyFiles.isEmpty()) {
             flags.add(RiskFlagDto.builder()
                     .rule("dependencyChanges").severity(RiskLevel.LOW)
@@ -106,31 +130,5 @@ public class RiskFlagRules {
         if (flags == null || flags.isEmpty()) return RiskLevel.NONE;
         return flags.stream().map(RiskFlagDto::getSeverity)
                 .max(RiskLevel::compareTo).orElse(RiskLevel.NONE);
-    }
-
-    private FileData mapFile(String json) {
-        FileData fd = new FileData();
-        fd.filename = jsonParser.extractStringValue(json, "filename");
-        fd.additions = jsonParser.extractIntValue(json, "additions");
-        fd.deletions = jsonParser.extractIntValue(json, "deletions");
-        return fd.filename != null ? fd : null;
-    }
-
-    private CommitData mapCommit(String json) {
-        CommitData cd = new CommitData();
-        cd.sha = jsonParser.extractStringValue(json, "sha");
-        cd.message = jsonParser.extractStringValue(json, "message");
-        return cd.sha != null ? cd : null;
-    }
-
-    private static class FileData {
-        String filename;
-        int additions;
-        int deletions;
-    }
-
-    private static class CommitData {
-        String sha;
-        String message;
     }
 }

@@ -44,10 +44,16 @@ public class RiskAnalysisService {
         report.put("overallRisk", overallRisk);
         report.put("aiAnalyzed", false);
 
-        // Phase 2: AI analysis — exception propagates if AI is unavailable
-        String aiResult = aiProvider.analyze(buildAnalysisPrompt(commitsJson, changedFilesJson, flags));
-        report.put("aiAnalysis", aiResult);
-        report.put("aiAnalyzed", true);
+        // Phase 2: AI analysis — gracefully degrade if unavailable
+        try {
+            String aiResult = aiProvider.analyze(buildAnalysisPrompt(commitsJson, changedFilesJson, flags));
+            report.put("aiAnalysis", aiResult);
+            report.put("aiAnalyzed", true);
+        } catch (Exception e) {
+            log.warn("AI analysis unavailable, using deterministic-only results: {}", e.getMessage());
+            report.put("aiAnalyzed", false);
+            report.put("aiError", e.getMessage());
+        }
 
         return report;
     }
