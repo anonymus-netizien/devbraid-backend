@@ -258,6 +258,23 @@ class DecisionNoteControllerTest {
     }
 
     @Test
+    @DisplayName("PUT /api/v1/threads/{threadId}/notes/{noteId} returns 404 when note not found")
+    void updateNote_NotFound_Returns404() throws Exception {
+        when(decisionNoteService.updateNote(any(User.class), eq(NOTE_ID), any(UpdateNoteRequest.class)))
+                .thenThrow(new NoteNotFoundException("Decision note not found"));
+
+        String body = objectMapper.writeValueAsString(new UpdateNoteRequest("Updated", "Updated rationale", null, null));
+
+        mockMvc.perform(put("/api/v1/threads/{threadId}/notes/{noteId}", THREAD_ID, NOTE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Decision note not found"));
+    }
+
+
+    @Test
     @DisplayName("DELETE /api/v1/threads/{threadId}/notes/{noteId} returns 200 OK")
     void deleteNote_Returns200() throws Exception {
         doNothing().when(decisionNoteService).deleteNote(any(User.class), eq(NOTE_ID));
