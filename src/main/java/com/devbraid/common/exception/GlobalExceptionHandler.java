@@ -10,6 +10,7 @@ import com.devbraid.user.exception.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -187,6 +188,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(
                 ApiResponse.error(ex.getMessage())
         );
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<?>> handleMalformedRequest(HttpMessageNotReadableException ex) {
+        log.warn("GlobalExceptionHandler :: Malformed request body: {}", ex.getMostSpecificCause().getMessage());
+        String msg = ex.getMostSpecificCause() instanceof IllegalArgumentException
+                ? ex.getMostSpecificCause().getMessage()
+                : "Invalid request body: " + ex.getMostSpecificCause().getMessage();
+        return ResponseEntity.badRequest().body(ApiResponse.error(msg));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
