@@ -1,8 +1,8 @@
 package com.devbraid.common.exception;
 
 import com.devbraid.changethread.exception.BriefNotFoundException;
-import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.exception.NoteNotFoundException;
+import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.common.ApiResponse;
 import com.devbraid.github.dto.response.GitHubStatusResponse;
 import com.devbraid.github.exception.*;

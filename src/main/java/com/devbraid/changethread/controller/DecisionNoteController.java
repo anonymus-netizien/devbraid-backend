@@ -4,7 +4,6 @@ import com.devbraid.changethread.dto.request.CreateNoteRequest;
 import com.devbraid.changethread.dto.request.UpdateNoteRequest;
 import com.devbraid.changethread.dto.response.NoteListItemResponse;
 import com.devbraid.changethread.dto.response.NoteResponse;
-import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.service.DecisionNoteService;

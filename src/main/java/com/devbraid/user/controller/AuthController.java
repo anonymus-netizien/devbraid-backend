@@ -6,7 +6,6 @@ import com.devbraid.user.dto.response.LoginResponse;
 import com.devbraid.user.dto.response.OtpSendResponse;
 import com.devbraid.user.dto.response.OtpVerifyResponse;
 import com.devbraid.user.dto.response.UserProfileResponse;
-import com.devbraid.user.service.UserService;
 import com.devbraid.user.entity.User;
 import com.devbraid.user.service.OtpService;
 import com.devbraid.user.service.UserService;
@@ -84,7 +83,7 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", response));
     }
 
-        @PutMapping("/profile")
+    @PutMapping("/profile")
     public ResponseEntity<ApiResponse<UserProfileResponse>> updateProfile(
             @Valid @RequestBody UpdateProfileRequest request,
             @AuthenticationPrincipal User user) {

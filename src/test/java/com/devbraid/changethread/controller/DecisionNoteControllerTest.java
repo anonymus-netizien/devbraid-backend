@@ -1,6 +1,5 @@
 package com.devbraid.changethread.controller;
 
-import com.devbraid.common.exception.GlobalExceptionHandler;
 import com.devbraid.changethread.dto.request.CreateNoteRequest;
 import com.devbraid.changethread.dto.request.UpdateNoteRequest;
 import com.devbraid.changethread.dto.response.NoteListItemResponse;
@@ -13,6 +12,7 @@ import com.devbraid.changethread.exception.NoteNotFoundException;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.service.DecisionNoteService;
+import com.devbraid.common.exception.GlobalExceptionHandler;
 import com.devbraid.user.entity.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -24,13 +24,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;
