@@ -1,6 +1,8 @@
 package com.devbraid.common.exception;
 
+import com.devbraid.changethread.exception.BriefNotFoundException;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
+import com.devbraid.changethread.exception.NoteNotFoundException;
 import com.devbraid.common.ApiResponse;
 import com.devbraid.github.dto.response.GitHubStatusResponse;
 import com.devbraid.github.exception.*;
@@ -8,6 +10,7 @@ import com.devbraid.user.exception.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -139,6 +142,30 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleThreadNotFound(ThreadNotFoundException ex) {
         log.warn("GlobalExceptionHandler :: Thread not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(NoteNotFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleNoteNotFound(NoteNotFoundException ex) {
+        log.warn("GlobalExceptionHandler :: Note not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(BriefNotFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleBriefNotFound(BriefNotFoundException ex) {
+        log.warn("GlobalExceptionHandler :: Brief not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<?>> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("GlobalExceptionHandler :: Access denied: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
                 ApiResponse.error(ex.getMessage())
         );
     }

@@ -6,6 +6,7 @@ import com.devbraid.user.dto.response.LoginResponse;
 import com.devbraid.user.dto.response.OtpSendResponse;
 import com.devbraid.user.dto.response.OtpVerifyResponse;
 import com.devbraid.user.dto.response.UserProfileResponse;
+import com.devbraid.user.service.UserService;
 import com.devbraid.user.entity.User;
 import com.devbraid.user.service.OtpService;
 import com.devbraid.user.service.UserService;
@@ -81,6 +82,24 @@ public class AuthController {
         log.info("AuthController :: Token refresh request received");
         LoginResponse response = userService.refreshToken(request.getRefreshToken());
         return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", response));
+    }
+
+        @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> updateProfile(
+            @Valid @RequestBody UpdateProfileRequest request,
+            @AuthenticationPrincipal User user) {
+        log.info("AuthController :: Updating profile for user {}", user.getEmail());
+        UserProfileResponse profile = userService.updateProfile(user, request);
+        return ResponseEntity.ok(ApiResponse.success("Profile updated", profile));
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @Valid @RequestBody UpdatePasswordRequest request,
+            @AuthenticationPrincipal User user) {
+        log.info("AuthController :: Changing password for user {}", user.getEmail());
+        userService.changePassword(user, request);
+        return ResponseEntity.ok(ApiResponse.success("Password changed", null));
     }
 
     @PostMapping("/logout")
