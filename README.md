@@ -29,17 +29,17 @@ docker compose up -d postgres redis
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|-----------|
-| Runtime | Java 17 |
-| Framework | Spring Boot 4.1.0 |
-| ORM | Spring Data JPA + Hibernate |
-| Database | PostgreSQL 18 (Flyway migrations) |
-| Cache | Redis 7 (OTP, rate limiting) |
-| Auth | JWT (HMAC256) + OTP (email-based) |
-| AI | OpenAI (optional, graceful degradation) |
-| Encryption | AES-256-GCM for GitHub PATs |
-| Testing | JUnit 5 + Mockito + WireMock (~130 tests) |
+| Component  | Technology                                |
+|------------|-------------------------------------------|
+| Runtime    | Java 17                                   |
+| Framework  | Spring Boot 4.1.0                         |
+| ORM        | Spring Data JPA + Hibernate               |
+| Database   | PostgreSQL 18 (Flyway migrations)         |
+| Cache      | Redis 7 (OTP, rate limiting)              |
+| Auth       | JWT (HMAC256) + OTP (email-based)         |
+| AI         | OpenAI (optional, graceful degradation)   |
+| Encryption | AES-256-GCM for GitHub PATs               |
+| Testing    | JUnit 5 + Mockito + WireMock (~130 tests) |
 
 ## Modules
 
@@ -58,13 +58,13 @@ com.devbraid
 
 ## API Endpoints
 
-| Module | Base Path | Methods |
-|--------|-----------|---------|
-| Auth | `/api/v1/auth` | register, login, logout, refresh, me, profile, password, otp/* |
-| GitHub | `/api/v1/github` | connect, disconnect, status, repos, repos/{owner}/{repo}/branches |
-| Threads | `/api/v1/threads` | CRUD + refresh, analyze, brief, publish |
-| Notes | `/api/v1/threads/{id}/notes`, `/api/v1/notes` | CRUD (thread-scoped + global list) |
-| Briefs | `/api/v1/briefs` | list, get by ID |
+| Module  | Base Path                                     | Methods                                                           |
+|---------|-----------------------------------------------|-------------------------------------------------------------------|
+| Auth    | `/api/v1/auth`                                | register, login, logout, refresh, me, profile, password, otp/*    |
+| GitHub  | `/api/v1/github`                              | connect, disconnect, status, repos, repos/{owner}/{repo}/branches |
+| Threads | `/api/v1/threads`                             | CRUD + refresh, analyze, brief, publish                           |
+| Notes   | `/api/v1/threads/{id}/notes`, `/api/v1/notes` | CRUD (thread-scoped + global list)                                |
+| Briefs  | `/api/v1/briefs`                              | list, get by ID                                                   |
 
 See `docs/PROJECT_DOCUMENTATION.md` for full API documentation with request/response examples.
 
@@ -72,22 +72,22 @@ See `docs/PROJECT_DOCUMENTATION.md` for full API documentation with request/resp
 
 6 Flyway migrations (V1–V6):
 
-| Table | Purpose |
-|-------|---------|
-| `users` | User accounts (UUID v7 PK, bcrypt password) |
-| `refresh_tokens` | JWT refresh tokens (hash, revoked flag) |
-| `github_connections` | Encrypted PATs (AES-256-GCM, per-connection IV) |
-| `change_threads` | Workspaces with JSONB commits/diffs/risk reports |
-| `decision_notes` | Why-decisions (context, rationale, alternatives, impact) |
-| `change_briefs` | AI-generated markdown briefs (1:1 with threads) |
+| Table                | Purpose                                                  |
+|----------------------|----------------------------------------------------------|
+| `users`              | User accounts (UUID v7 PK, bcrypt password)              |
+| `refresh_tokens`     | JWT refresh tokens (hash, revoked flag)                  |
+| `github_connections` | Encrypted PATs (AES-256-GCM, per-connection IV)          |
+| `change_threads`     | Workspaces with JSONB commits/diffs/risk reports         |
+| `decision_notes`     | Why-decisions (context, rationale, alternatives, impact) |
+| `change_briefs`      | AI-generated markdown briefs (1:1 with threads)          |
 
 ## Configuration
 
-| Profile | DDL | CORS | JWT | DB Pool |
-|---------|-----|------|-----|---------|
-| `dev` | update | localhost:3000,5173,4200 | dev default | 5 |
-| `stage` | validate | staging.devbraid.com | required | 15 |
-| `prod` | validate | app.devbraid.com | required | 25 |
+| Profile | DDL      | CORS                     | JWT         | DB Pool |
+|---------|----------|--------------------------|-------------|---------|
+| `dev`   | update   | localhost:3000,5173,4200 | dev default | 5       |
+| `stage` | validate | staging.devbraid.com     | required    | 15      |
+| `prod`  | validate | app.devbraid.com         | required    | 25      |
 
 ## Testing
 
