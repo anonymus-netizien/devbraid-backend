@@ -207,6 +207,11 @@ public class ChangeThreadService {
         var report = riskAnalysisService.analyze(thread.getCommits(), thread.getChangedFiles());
         RiskLevel overallRisk = (RiskLevel) report.get("overallRisk");
 
+        // Transition from DRAFT to ANALYZING
+        if (thread.getStatus() == com.devbraid.changethread.entity.ThreadStatus.DRAFT) {
+            thread.setStatus(com.devbraid.changethread.entity.ThreadStatus.ANALYZING);
+        }
+
         // Serialization failure propagates — GlobalExceptionHandler handles it
         String riskReport = objectMapper.writeValueAsString(report);
 
