@@ -19,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.modelmapper.ModelMapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
@@ -52,6 +53,8 @@ class UserServiceTest {
     private RefreshTokenRepository refreshTokenRepository;
     @Mock
     private OtpService otpService;
+    @Mock
+    private ModelMapper generalModelMapper;
     @Captor
     private ArgumentCaptor<User> userCaptor;
     private UserService userService;
@@ -59,7 +62,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, passwordEncoder, jwtTokenProvider, refreshTokenRepository, otpService);
+        userService = new UserService(userRepository, passwordEncoder, jwtTokenProvider, refreshTokenRepository, otpService, generalModelMapper);
         registerRequest = new RegisterRequest(FULL_NAME, EMAIL, PASSWORD);
     }
 
