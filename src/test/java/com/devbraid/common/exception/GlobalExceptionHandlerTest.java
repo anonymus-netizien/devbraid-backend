@@ -32,8 +32,9 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().isSuccess()).isFalse();
-        assertThat(result.getBody().getMessage()).contains("Already connected");
+        assertThat(result.getBody().success()).isFalse();
+        assertThat(result.getBody().message())
+                .contains("Already connected");
     }
 
     @Test
@@ -44,8 +45,9 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().isSuccess()).isFalse();
-        assertThat(result.getBody().getMessage()).contains("Not connected");
+        assertThat(result.getBody().success()).isFalse();
+        assertThat(result.getBody().message())
+                .contains("Not connected");
     }
 
     @Test
@@ -56,8 +58,9 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().isSuccess()).isFalse();
-        assertThat(result.getBody().getMessage()).contains("Token invalid");
+        assertThat(result.getBody().success()).isFalse();
+        assertThat(result.getBody().message())
+                .contains("Token invalid");
     }
 
     @Test
@@ -68,8 +71,9 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().isSuccess()).isFalse();
-        assertThat(result.getBody().getMessage()).contains("Resource not found");
+        assertThat(result.getBody().success()).isFalse();
+        assertThat(result.getBody().message())
+                .contains("Resource not found");
     }
 
     @Test
@@ -80,8 +84,9 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().isSuccess()).isFalse();
-        assertThat(result.getBody().getMessage()).contains("Rate limited");
+        assertThat(result.getBody().success()).isFalse();
+        assertThat(result.getBody().message())
+                .contains("Rate limited");
     }
 
     // ── Validation exception tests ──
@@ -102,7 +107,7 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().isSuccess()).isFalse();
+        assertThat(result.getBody().success()).isFalse();
     }
 
     // ── Generic exception tests ──
@@ -115,8 +120,9 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().isSuccess()).isFalse();
-        assertThat(result.getBody().getMessage()).contains("Bad input");
+        assertThat(result.getBody().success()).isFalse();
+        assertThat(result.getBody().message())
+                .contains("Bad input");
     }
 
     @Test
@@ -127,7 +133,7 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().isSuccess()).isFalse();
+        assertThat(result.getBody().success()).isFalse();
     }
 
     @Test
@@ -138,6 +144,6 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().isSuccess()).isFalse();
+        assertThat(result.getBody().success()).isFalse();
     }
 }
