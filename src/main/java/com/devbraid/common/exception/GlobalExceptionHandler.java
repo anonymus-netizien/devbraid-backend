@@ -4,7 +4,6 @@ import com.devbraid.changethread.exception.BriefNotFoundException;
 import com.devbraid.changethread.exception.NoteNotFoundException;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.common.ApiResponse;
-import com.devbraid.github.dto.response.GitHubStatusResponse;
 import com.devbraid.github.exception.*;
 import com.devbraid.user.exception.*;
 import lombok.extern.slf4j.Slf4j;
@@ -112,13 +111,11 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(GitHubTokenExpiredException.class)
-    public ResponseEntity<ApiResponse<GitHubStatusResponse>> handleGitHubTokenExpired(GitHubTokenExpiredException ex) {
+    public ResponseEntity<ApiResponse<?>> handleGitHubTokenExpired(GitHubTokenExpiredException ex) {
         log.warn("GlobalExceptionHandler :: GitHub token expired/invalid: {}", ex.getMessage());
-        GitHubStatusResponse response = GitHubStatusResponse.builder()
-                .connected(true)
-                .valid(false)
-                .build();
-        return ResponseEntity.ok(ApiResponse.success(ex.getMessage(), response));
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ApiResponse.error(ex.getMessage())
+        );
     }
 
     @ExceptionHandler(GitHubNotFoundException.class)
@@ -177,7 +174,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         log.warn("GlobalExceptionHandler :: Type mismatch for parameter {}: {}", ex.getName(), ex.getMessage());
         String msg = String.format("Invalid value '%s' for parameter '%s'", ex.getValue(), ex.getName());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                 ApiResponse.error(msg)
         );
     }
