@@ -37,13 +37,18 @@ public class BriefBuilderService {
      * @return the generated brief response
      */
     @Transactional
-    public BriefResponse generateBrief(User user, UUID threadId) throws Exception {
+    public BriefResponse generateBrief(User user, UUID threadId) {
         ChangeThread thread = threadRepository
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
 
-        // ponytail: AI failure propagates — no graceful degradation
-        String content = aiProvider.analyze(buildBriefPrompt(thread));
+        String content;
+        try {
+            content = aiProvider.analyze(buildBriefPrompt(thread));
+        } catch (Exception e) {
+            log.warn("AI brief generation unavailable, using template fallback: {}", e.getMessage());
+            content = buildTemplateBrief(thread);
+        }
 
         // Check if brief already exists
         var existingBrief = briefRepository.findByThreadId(threadId);
@@ -130,6 +135,32 @@ public class BriefBuilderService {
         prompt.append("4. **Testing Recommendations** — What to test\n");
 
         return prompt.toString();
+    }
+
+    private String buildTemplateBrief(ChangeThread thread) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("# Change Brief: ").append(thread.getTitle()).append("\n\n");
+        sb.append("**Repository:** ").append(thread.getRepositoryFullName()).append("\n");
+        sb.append("**Branch:** ").append(thread.getHeadBranch()).append(" → ").append(thread.getBaseBranch()).append("\n\n");
+        sb.append("## Summary\n\n");
+        sb.append("This change encompasses modifications across ").append(thread.getRepositoryFullName()).append(" ");
+        sb.append("from branch ").append(thread.getHeadBranch()).append(" into ").append(thread.getBaseBranch()).append(".\n\n");
+
+        if (thread.getRiskLevel() != null) {
+            sb.append("## Risk Assessment\n\n");
+            sb.append("**Overall Risk:** ").append(thread.getRiskLevel()).append("\n\n");
+        }
+
+        if (thread.getRiskReport() != null) {
+            sb.append("### Risk Flags\n\n");
+            sb.append(thread.getRiskReport()).append("\n\n");
+        }
+
+        sb.append("---\n\n");
+        sb.append("*This brief was generated using template fallback (AI service unavailable).\n");
+        sb.append("Configure OPENAI_API_KEY for AI-enhanced briefs.*\n");
+
+        return sb.toString();
     }
 
     private BriefResponse toResponse(ChangeBrief brief) {
