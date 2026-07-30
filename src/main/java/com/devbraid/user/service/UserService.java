@@ -98,6 +98,7 @@ public class UserService {
         log.info("UserService :: User finalized from pending registration for email: {}", email);
     }
 
+    @AuditAction(action = "LOGIN", entityType = "USER")
     public LoginResponse login(String email, String password) {
         log.info("UserService :: Login request for email: {}", email);
 
@@ -181,6 +182,7 @@ public class UserService {
         return response;
     }
 
+    @AuditAction(action = "LOGOUT", entityType = "USER")
     public void logout(String refreshToken) {
         log.info("UserService :: Logout request");
 
