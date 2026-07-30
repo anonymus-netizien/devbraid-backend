@@ -13,6 +13,7 @@ import com.devbraid.changethread.repository.DecisionNoteRepository;
 import com.devbraid.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class DecisionNoteService {
 
     private final DecisionNoteRepository noteRepository;
     private final ChangeThreadRepository threadRepository;
+    private final ModelMapper generalModelMapper;
 
     @Transactional
     public NoteResponse createNote(User user, UUID threadId, CreateNoteRequest req) {
@@ -107,34 +109,17 @@ public class DecisionNoteService {
     }
 
     private NoteResponse toResponse(DecisionNote note) {
-        return NoteResponse.builder()
-                .id(note.getId())
-                .threadId(note.getThread().getId())
-                .authorId(note.getAuthor().getId())
-                .context(note.getContext())
-                .contextRef(note.getContextRef())
-                .decision(note.getDecision())
-                .rationale(note.getRationale())
-                .alternatives(note.getAlternatives())
-                .impact(note.getImpact())
-                .status(note.getStatus())
-                .createdAt(note.getCreatedAt())
-                .build();
+        NoteResponse response = generalModelMapper.map(note, NoteResponse.class);
+        response.setThreadId(note.getThread().getId());
+        response.setAuthorId(note.getAuthor().getId());
+        return response;
     }
 
     private NoteListItemResponse toListItemResponse(DecisionNote note) {
-        return NoteListItemResponse.builder()
-                .id(note.getId())
-                .threadId(note.getThread().getId())
-                .threadTitle(note.getThread().getTitle())
-                .repositoryFullName(note.getThread().getRepositoryFullName())
-                .decision(note.getDecision())
-                .rationale(note.getRationale())
-                .alternatives(note.getAlternatives())
-                .impact(note.getImpact())
-                .context(note.getContext())
-                .status(note.getStatus())
-                .createdAt(note.getCreatedAt())
-                .build();
+        NoteListItemResponse response = generalModelMapper.map(note, NoteListItemResponse.class);
+        response.setThreadId(note.getThread().getId());
+        response.setThreadTitle(note.getThread().getTitle());
+        response.setRepositoryFullName(note.getThread().getRepositoryFullName());
+        return response;
     }
 }

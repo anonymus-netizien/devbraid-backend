@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,7 @@ public class ChangeThreadService {
     private final RiskAnalysisService riskAnalysisService;
     private final ThreadSnapshotService snapshotService;
     private final ThreadEventService eventService;
+    private final ModelMapper generalModelMapper;
 
     /**
      * Create a new Change Thread by fetching diff data from GitHub.
@@ -266,45 +268,24 @@ public class ChangeThreadService {
     // ── Private helpers ──────────────────────────────────────────────
 
     private ThreadResponse toResponse(ChangeThread thread) {
-        var notes = noteRepository.findByThreadIdOrderByCreatedAtDesc(thread.getId())
+        ThreadResponse response = generalModelMapper.map(thread, ThreadResponse.class);
+
+        // Notes require a separate DB query — set them after mapping
+        List<NoteResponse> notes = noteRepository.findByThreadIdOrderByCreatedAtDesc(thread.getId())
                 .stream()
                 .map(this::toNoteResponse)
                 .toList();
+        response.setNotes(notes);
 
-        return ThreadResponse.builder()
-                .id(thread.getId())
-                .repositoryFullName(thread.getRepositoryFullName())
-                .headBranch(thread.getHeadBranch())
-                .baseBranch(thread.getBaseBranch())
-                .title(thread.getTitle())
-                .description(thread.getDescription())
-                .source(thread.getSource())
-                .status(thread.getStatus())
-                .commitSha(thread.getCommitSha())
-                .commits(thread.getCommits())
-                .changedFiles(thread.getChangedFiles())
-                .riskLevel(thread.getRiskLevel())
-                .riskReport(thread.getRiskReport())
-                .notes(notes)
-                .createdAt(thread.getCreatedAt())
-                .updatedAt(thread.getUpdatedAt())
-                .build();
+        return response;
     }
 
     private NoteResponse toNoteResponse(DecisionNote note) {
-        return NoteResponse.builder()
-                .id(note.getId())
-                .threadId(note.getThread().getId())
-                .authorId(note.getAuthor().getId())
-                .context(note.getContext())
-                .contextRef(note.getContextRef())
-                .decision(note.getDecision())
-                .rationale(note.getRationale())
-                .alternatives(note.getAlternatives())
-                .impact(note.getImpact())
-                .status(note.getStatus())
-                .createdAt(note.getCreatedAt())
-                .build();
+        NoteResponse response = generalModelMapper.map(note, NoteResponse.class);
+        // Nested entity IDs need explicit mapping
+        response.setThreadId(note.getThread().getId());
+        response.setAuthorId(note.getAuthor().getId());
+        return response;
     }
 
     private String serializeToJson(Object obj) throws JsonProcessingException {
