@@ -48,6 +48,8 @@ public class ChangeThreadService {
     private final PatEncryptor patEncryptor;
     private final ObjectMapper objectMapper;
     private final RiskAnalysisService riskAnalysisService;
+    private final ThreadSnapshotService snapshotService;
+    private final ThreadEventService eventService;
 
     /**
      * Create a new Change Thread by fetching diff data from GitHub.
@@ -119,6 +121,13 @@ public class ChangeThreadService {
 
         thread = threadRepository.save(thread);
         log.info("Created thread {} for user {} on {}/{}", thread.getId(), user.getId(), owner, repo);
+
+        // Create initial snapshot and timeline event
+        snapshotService.createSnapshot(thread, user, com.devbraid.changethread.entity.SnapshotType.CREATION, null);
+        eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.THREAD_CREATED,
+                String.format("Thread '%s' created for %s (%s → %s)", thread.getTitle(), thread.getRepositoryFullName(), thread.getBaseBranch(), thread.getHeadBranch()),
+                null);
+
         return toResponse(thread);
     }
 
@@ -151,6 +160,10 @@ public class ChangeThreadService {
         }
 
         thread = threadRepository.save(thread);
+
+        eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.STATUS_CHANGED,
+                String.format("Thread updated: %s", thread.getTitle()), null);
+
         return toResponse(thread);
     }
 
@@ -159,6 +172,7 @@ public class ChangeThreadService {
         ChangeThread thread = threadRepository
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
+
         threadRepository.delete(thread);
         log.info("Deleted thread {} for user {}", threadId, user.getId());
     }
@@ -192,6 +206,15 @@ public class ChangeThreadService {
         }
 
         thread = threadRepository.save(thread);
+
+        // Create refresh snapshot and timeline event
+        snapshotService.createSnapshot(thread, user, com.devbraid.changethread.entity.SnapshotType.REFRESH, null);
+        eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.THREAD_REFRESHED,
+                String.format("Thread refreshed from GitHub — %d commits, %d files",
+                        thread.getCommits() != null ? countJsonArray(thread.getCommits()) : 0,
+                        thread.getChangedFiles() != null ? countJsonArray(thread.getChangedFiles()) : 0),
+                null);
+
         return toResponse(thread);
     }
 
@@ -219,7 +242,24 @@ public class ChangeThreadService {
         thread.setRiskReport(riskReport);
         thread = threadRepository.save(thread);
 
+        // Create analysis snapshot and timeline event
+        snapshotService.createSnapshot(thread, user, com.devbraid.changethread.entity.SnapshotType.ANALYSIS,
+                String.format("Risk level: %s", overallRisk));
+        eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.ANALYSIS_RUN,
+                String.format("Risk analysis complete — level: %s, flags: %d",
+                        overallRisk, report.get("flags") != null ? ((java.util.List<?>) report.get("flags")).size() : 0),
+                riskReport);
+
         log.info("Analyzed thread {} — risk level: {}", threadId, overallRisk);
+        return toResponse(thread);
+    }
+
+    // ── Public helper for ThreadSearchService ────────────────────────
+
+    /**
+     * Convert entity to response. Public for ThreadSearchService access.
+     */
+    public ThreadResponse toResponsePublic(ChangeThread thread) {
         return toResponse(thread);
     }
 
@@ -275,5 +315,14 @@ public class ChangeThreadService {
     private String decryptPat(GitHubConnection connection) {
         // ponytail: RuntimeException from PatEncryptor propagates directly
         return patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
+    }
+
+    private int countJsonArray(String json) {
+        try {
+            var list = objectMapper.readValue(json, java.util.List.class);
+            return list != null ? list.size() : 0;
+        } catch (Exception e) {
+            return 0;
+        }
     }
 }

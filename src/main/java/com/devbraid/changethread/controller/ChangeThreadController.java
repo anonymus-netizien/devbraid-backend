@@ -8,6 +8,7 @@ import com.devbraid.changethread.dto.request.CreateThreadRequest;
 import com.devbraid.changethread.dto.request.UpdateThreadRequest;
 import com.devbraid.changethread.dto.response.ThreadResponse;
 import com.devbraid.changethread.service.ChangeThreadService;
+import com.devbraid.changethread.service.ThreadSearchService;
 import com.devbraid.common.ApiResponse;
 import com.devbraid.user.entity.User;
 import jakarta.validation.Valid;
@@ -32,6 +33,7 @@ public class ChangeThreadController {
     private final ChangeThreadService threadService;
     private final BriefBuilderService briefBuilderService;
     private final BriefPublisherService briefPublisherService;
+    private final ThreadSearchService searchService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<ThreadResponse>> createThread(
@@ -49,6 +51,33 @@ public class ChangeThreadController {
             @AuthenticationPrincipal User user) {
         Page<ThreadResponse> threads = threadService.listThreads(user, pageable);
         return ResponseEntity.ok(ApiResponse.success("Threads retrieved", threads));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<Page<ThreadResponse>>> searchThreads(
+            @RequestParam String q,
+            @PageableDefault(size = 20) Pageable pageable,
+            @AuthenticationPrincipal User user) {
+        Page<ThreadResponse> results = searchService.searchThreads(user, q, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Search results", results));
+    }
+
+    @GetMapping("/search/status")
+    public ResponseEntity<ApiResponse<Page<ThreadResponse>>> searchByStatus(
+            @RequestParam com.devbraid.changethread.entity.ThreadStatus status,
+            @PageableDefault(size = 20) Pageable pageable,
+            @AuthenticationPrincipal User user) {
+        Page<ThreadResponse> results = searchService.searchByStatus(user, status, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Search results", results));
+    }
+
+    @GetMapping("/search/repo")
+    public ResponseEntity<ApiResponse<Page<ThreadResponse>>> searchByRepo(
+            @RequestParam String repositoryFullName,
+            @PageableDefault(size = 20) Pageable pageable,
+            @AuthenticationPrincipal User user) {
+        Page<ThreadResponse> results = searchService.searchByRepository(user, repositoryFullName, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Search results", results));
     }
 
     @GetMapping("/{id}")
