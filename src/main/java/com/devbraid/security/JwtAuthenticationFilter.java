@@ -44,6 +44,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // Load the full User entity so @AuthenticationPrincipal User resolves correctly
                 User user = userRepository.findById(UUID.fromString(userId)).orElse(null);
 
+                if (user == null) {
+                    log.warn("JwtFilter :: User not found for userId: {}", userId);
+                    SecurityContextHolder.clearContext();
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"success\":false,\"message\":\"User not found\"}");
+                    return;
+                }
+
                 var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
                 var auth = new UsernamePasswordAuthenticationToken(user, null, authorities);
 
