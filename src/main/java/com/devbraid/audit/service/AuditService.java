@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -24,8 +25,9 @@ public class AuditService {
 
     /**
      * Log an audit event. Append-only — never updates or deletes.
+     * Uses REQUIRES_NEW to ensure audit entry persists even if the calling transaction rolls back.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(User user, String action, String entityType, UUID entityId,
                     Map<String, Object> details, HttpServletRequest request) {
         AuditLog auditLog = AuditLog.builder()
@@ -44,8 +46,9 @@ public class AuditService {
 
     /**
      * Log an audit event without request context (for async/scheduled tasks).
+     * Uses REQUIRES_NEW to ensure audit entry persists even if the calling transaction rolls back.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(User user, String action, String entityType, UUID entityId,
                     Map<String, Object> details) {
         AuditLog auditLog = AuditLog.builder()
