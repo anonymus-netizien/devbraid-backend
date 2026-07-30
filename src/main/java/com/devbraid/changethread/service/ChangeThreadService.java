@@ -1,5 +1,6 @@
 package com.devbraid.changethread.service;
 
+import com.devbraid.analysis.RiskLevel;
 import com.devbraid.analysis.service.RiskAnalysisService;
 import com.devbraid.changethread.dto.request.CreateThreadRequest;
 import com.devbraid.changethread.dto.request.UpdateThreadRequest;
@@ -7,14 +8,12 @@ import com.devbraid.changethread.dto.response.NoteResponse;
 import com.devbraid.changethread.dto.response.ThreadResponse;
 import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.entity.DecisionNote;
-import com.devbraid.analysis.RiskLevel;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.repository.DecisionNoteRepository;
 import com.devbraid.github.client.GitHubApiClient;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.github.service.GitHubConnectionService;
-
 import com.devbraid.user.entity.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

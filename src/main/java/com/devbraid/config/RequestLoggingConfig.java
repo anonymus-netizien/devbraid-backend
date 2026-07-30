@@ -24,6 +24,20 @@ public class RequestLoggingConfig {
             "authorization", "cookie", "x-api-key", "set-cookie"
     );
 
+    /**
+     * Builds a sanitized header string with sensitive values masked.
+     */
+    private static String sanitizedHeaders(HttpServletRequest request) {
+        return Collections.list(request.getHeaderNames()).stream()
+                .map(name -> {
+                    String value = SENSITIVE_HEADERS.contains(name.toLowerCase())
+                            ? "[REDACTED]"
+                            : String.join(",", Collections.list(request.getHeaders(name)));
+                    return name + ": " + value;
+                })
+                .collect(Collectors.joining(", ", "[", "]"));
+    }
+
     @Bean
     public CommonsRequestLoggingFilter requestLoggingFilter() {
         CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter() {
@@ -37,19 +51,5 @@ public class RequestLoggingConfig {
         };
         // All request details are logged in beforeRequest() override above
         return filter;
-    }
-
-    /**
-     * Builds a sanitized header string with sensitive values masked.
-     */
-    private static String sanitizedHeaders(HttpServletRequest request) {
-        return Collections.list(request.getHeaderNames()).stream()
-                .map(name -> {
-                    String value = SENSITIVE_HEADERS.contains(name.toLowerCase())
-                            ? "[REDACTED]"
-                            : String.join(",", Collections.list(request.getHeaders(name)));
-                    return name + ": " + value;
-                })
-                .collect(Collectors.joining(", ", "[", "]"));
     }
 }

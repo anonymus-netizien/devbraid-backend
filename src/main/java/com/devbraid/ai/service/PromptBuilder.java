@@ -85,4 +85,30 @@ public class PromptBuilder {
         prompt.append("\nProvide: 1) Risk summary 2) Key concerns 3) Recommendations");
         return prompt.toString();
     }
+
+    /**
+     * Build a prompt for AI-generated decision note suggestions.
+     * Sprint 5: enriches diff context with commit analysis for better note generation.
+     */
+    public String buildDecisionNotePrompt(String commitsJson, String changedFilesJson, java.util.List<String> riskIndicators) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("Based on the following code changes, suggest 2-3 decision notes that capture the 'why' behind these changes.\n\n");
+        prompt.append("Changed files:\n").append(changedFilesJson != null ? changedFilesJson : "N/A").append("\n\n");
+        prompt.append("Commits:\n").append(commitsJson != null ? commitsJson : "N/A").append("\n\n");
+
+        if (!riskIndicators.isEmpty()) {
+            prompt.append("Risk indicators:\n");
+            for (String indicator : riskIndicators) {
+                prompt.append("- ").append(indicator).append("\n");
+            }
+            prompt.append("\n");
+        }
+
+        prompt.append("For each note, provide:\n");
+        prompt.append("1. Category (security, architecture, performance, testing, general)\n");
+        prompt.append("2. A concise note explaining the reasoning behind the change\n");
+        prompt.append("3. Priority (high, medium, low)\n");
+
+        return prompt.toString();
+    }
 }

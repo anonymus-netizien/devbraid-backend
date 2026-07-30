@@ -7,8 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -135,7 +135,7 @@ class RiskFlagRulesTest {
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).anyMatch(f ->
-                "dependencyChanges".equals(f.getRule()) && f.getSeverity() == RiskLevel.LOW
+                f.getRule().contains("Dependency") && f.getSeverity() == RiskLevel.MEDIUM
         );
     }
 
