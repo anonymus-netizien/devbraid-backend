@@ -113,6 +113,11 @@
             <artifactId>lombok</artifactId>
             <version>1.18.46</version>
             <scope>compile</scope>
+        </dependency>        <!-- ModelMapper for DTO-Entity mapping -->
+        <dependency>
+            <groupId>org.modelmapper</groupId>
+            <artifactId>modelmapper</artifactId>
+            <version>3.2.1</version>
         </dependency>
 
         <!-- WireMock for HTTP mocking in tests -->
