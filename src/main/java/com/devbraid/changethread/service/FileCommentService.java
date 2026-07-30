@@ -11,6 +11,7 @@ import com.devbraid.changethread.repository.FileCommentRepository;
 import com.devbraid.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ public class FileCommentService {
 
     private final FileCommentRepository commentRepository;
     private final ChangeThreadRepository threadRepository;
+    private final ModelMapper generalModelMapper;
 
     @Transactional
     public FileCommentResponse createComment(User user, UUID threadId, CreateFileCommentRequest req) {
@@ -122,17 +124,9 @@ public class FileCommentService {
     // ── Private helpers ──────────────────────────────────────────────
 
     private FileCommentResponse toResponse(FileComment comment) {
-        return FileCommentResponse.builder()
-                .id(comment.getId())
-                .threadId(comment.getThread().getId())
-                .authorId(comment.getAuthor().getId())
-                .filePath(comment.getFilePath())
-                .lineStart(comment.getLineStart())
-                .lineEnd(comment.getLineEnd())
-                .content(comment.getContent())
-                .status(comment.getStatus())
-                .createdAt(comment.getCreatedAt())
-                .updatedAt(comment.getUpdatedAt())
-                .build();
+        FileCommentResponse response = generalModelMapper.map(comment, FileCommentResponse.class);
+        response.setThreadId(comment.getThread().getId());
+        response.setAuthorId(comment.getAuthor().getId());
+        return response;
     }
 }

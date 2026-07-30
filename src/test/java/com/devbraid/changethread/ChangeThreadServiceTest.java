@@ -26,6 +26,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.modelmapper.ModelMapper;
+import org.modelmapper.convention.MatchingStrategies;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -74,10 +76,23 @@ class ChangeThreadServiceTest {
     private ThreadEventService eventService;
 
     @Spy
+    private ModelMapper generalModelMapper = createTestModelMapper();
+
+    @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
     private User testUser;
     private GitHubConnection testConnection;
+
+    private static ModelMapper createTestModelMapper() {
+        ModelMapper mapper = new ModelMapper();
+        mapper.getConfiguration()
+                .setMatchingStrategy(MatchingStrategies.STRICT)
+                .setSkipNullEnabled(true)
+                .setFieldMatchingEnabled(true)
+                .setFieldAccessLevel(org.modelmapper.config.Configuration.AccessLevel.PRIVATE);
+        return mapper;
+    }
 
     @BeforeEach
     void setUp() {

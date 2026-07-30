@@ -11,6 +11,7 @@ import com.devbraid.changethread.repository.ThreadEventRepository;
 import com.devbraid.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class ThreadEventService {
 
     private final ThreadEventRepository eventRepository;
     private final ChangeThreadRepository threadRepository;
+    private final ModelMapper generalModelMapper;
 
     /**
      * Record an event on a thread. Used internally by other services.
@@ -91,14 +93,9 @@ public class ThreadEventService {
     // ── Private helpers ──────────────────────────────────────────────
 
     private ThreadEventResponse toResponse(ThreadEvent event) {
-        return ThreadEventResponse.builder()
-                .id(event.getId())
-                .threadId(event.getThread().getId())
-                .actorId(event.getActor().getId())
-                .type(event.getType())
-                .summary(event.getSummary())
-                .metadata(event.getMetadata())
-                .createdAt(event.getCreatedAt())
-                .build();
+        ThreadEventResponse response = generalModelMapper.map(event, ThreadEventResponse.class);
+        response.setThreadId(event.getThread().getId());
+        response.setActorId(event.getActor().getId());
+        return response;
     }
 }

@@ -13,6 +13,7 @@ import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class BriefBuilderService {
     private final ChangeBriefRepository briefRepository;
     private final ChangeThreadRepository threadRepository;
     private final AIProvider aiProvider;
+    private final ModelMapper generalModelMapper;
 
     /**
      * Generate a Change Brief for a thread using AI.
@@ -164,28 +166,22 @@ public class BriefBuilderService {
     }
 
     private BriefResponse toResponse(ChangeBrief brief) {
-        return BriefResponse.builder()
-                .id(brief.getId())
-                .threadId(brief.getThread().getId())
-                .content(brief.getContent())
-                .publishedToGithub(brief.getPublishedAt() != null)
-                .publishUrl(brief.getPublishUrl())
-                .createdAt(brief.getCreatedAt())
-                .build();
+        BriefResponse response = generalModelMapper.map(brief, BriefResponse.class);
+        response.setThreadId(brief.getThread().getId());
+        response.setPublishedToGithub(brief.getPublishedAt() != null);
+        return response;
     }
 
     private BriefListItemResponse toListItemResponse(ChangeBrief brief) {
         ChangeThread thread = brief.getThread();
-        return BriefListItemResponse.builder()
-                .id(brief.getId())
-                .threadId(thread.getId())
-                .threadTitle(thread.getTitle())
-                .repositoryFullName(thread.getRepositoryFullName())
-                .headBranch(thread.getHeadBranch())
-                .baseBranch(thread.getBaseBranch())
-                .threadStatus(thread.getStatus())
-                .publishedToGithub(brief.getPublishedAt() != null)
-                .createdAt(brief.getCreatedAt())
-                .build();
+        BriefListItemResponse response = generalModelMapper.map(brief, BriefListItemResponse.class);
+        response.setThreadId(thread.getId());
+        response.setThreadTitle(thread.getTitle());
+        response.setRepositoryFullName(thread.getRepositoryFullName());
+        response.setHeadBranch(thread.getHeadBranch());
+        response.setBaseBranch(thread.getBaseBranch());
+        response.setThreadStatus(thread.getStatus());
+        response.setPublishedToGithub(brief.getPublishedAt() != null);
+        return response;
     }
 }

@@ -17,6 +17,7 @@ import com.devbraid.user.repository.RefreshTokenRepository;
 import com.devbraid.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,7 @@ public class UserService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
     private final OtpService otpService;
+    private final ModelMapper generalModelMapper;
 
     public void register(RegisterRequest request) {
         log.info("UserService :: Register request for email: {}", request.getEmail());
@@ -138,13 +140,9 @@ public class UserService {
         User user = userRepository.findById(java.util.UUID.fromString(userId))
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
 
-        return UserProfileResponse.builder()
-                .id(user.getId())
-                .fullName(user.getFullName())
-                .email(user.getEmail())
-                .role("DEVELOPER")
-                .createdAt(user.getCreatedAt())
-                .build();
+        UserProfileResponse response = generalModelMapper.map(user, UserProfileResponse.class);
+        response.setRole("DEVELOPER");
+        return response;
     }
 
     public LoginResponse refreshToken(String refreshToken) {
@@ -198,16 +196,17 @@ public class UserService {
         String accessToken = jwtTokenProvider.createAccessToken(userId, user.getEmail(), userRole);
         String refreshToken = jwtTokenProvider.createRefreshToken(userId, user.getEmail(), userRole);
 
-        return LoginResponse.builder()
+        LoginResponse response = LoginResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .issuedAt(Instant.now())
                 .expiresAt(jwtTokenProvider.getAccessExpiresAt())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
-                .userId(user.getId())
-                .role(userRole)
                 .build();
+        response.setUserId(user.getId());
+        response.setRole(userRole);
+        return response;
     }
 
     private void persistRefreshToken(String rawToken, User user) {

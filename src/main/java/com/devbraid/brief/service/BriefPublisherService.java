@@ -92,16 +92,20 @@ public class BriefPublisherService {
 
         return briefRepository.findByThreadId(threadId)
                 .filter(brief -> brief.getPublishedAt() != null)
-                .map(brief -> PublishResponse.builder()
-                        .success(true)
-                        .publishUrl(brief.getPublishUrl())
-                        .message("Brief published")
-                        .publishedAt(brief.getPublishedAt())
-                        .build())
+                .map(brief -> getPublishResponse(brief, "Brief published"))
                 .orElse(PublishResponse.builder()
                         .success(false)
                         .message("Brief not yet published")
                         .build());
+    }
+
+    private PublishResponse getPublishResponse(ChangeBrief brief, String message) {
+        return PublishResponse.builder()
+                .success(true)
+                .publishUrl(brief.getPublishUrl())
+                .message(message)
+                .publishedAt(brief.getPublishedAt())
+                .build();
     }
 
     private String decryptPat(GitHubConnection connection) {

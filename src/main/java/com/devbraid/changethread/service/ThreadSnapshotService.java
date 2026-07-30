@@ -11,6 +11,7 @@ import com.devbraid.changethread.repository.ThreadSnapshotRepository;
 import com.devbraid.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,7 @@ public class ThreadSnapshotService {
 
     private final ThreadSnapshotRepository snapshotRepository;
     private final ChangeThreadRepository threadRepository;
+    private final ModelMapper generalModelMapper;
 
     /**
      * Create a snapshot from the current thread state.
@@ -121,21 +123,9 @@ public class ThreadSnapshotService {
     // ── Private helpers ──────────────────────────────────────────────
 
     private SnapshotResponse toResponse(ThreadSnapshot snapshot) {
-        return SnapshotResponse.builder()
-                .id(snapshot.getId())
-                .threadId(snapshot.getThread().getId())
-                .userId(snapshot.getUser().getId())
-                .repositoryFullName(snapshot.getRepositoryFullName())
-                .headBranch(snapshot.getHeadBranch())
-                .baseBranch(snapshot.getBaseBranch())
-                .commitSha(snapshot.getCommitSha())
-                .commits(snapshot.getCommits())
-                .changedFiles(snapshot.getChangedFiles())
-                .title(snapshot.getTitle())
-                .description(snapshot.getDescription())
-                .type(snapshot.getType())
-                .note(snapshot.getNote())
-                .createdAt(snapshot.getCreatedAt())
-                .build();
+        SnapshotResponse response = generalModelMapper.map(snapshot, SnapshotResponse.class);
+        response.setThreadId(snapshot.getThread().getId());
+        response.setUserId(snapshot.getUser().getId());
+        return response;
     }
 }

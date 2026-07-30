@@ -24,6 +24,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.modelmapper.ModelMapper;
+import org.modelmapper.convention.MatchingStrategies;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -71,6 +73,9 @@ class ChangeThreadIntegrationTest {
     @Mock
     private ThreadEventService eventService;
 
+    @Spy
+    private ModelMapper generalModelMapper = createTestModelMapper();
+
     @InjectMocks
     private ChangeThreadService threadService;
 
@@ -98,6 +103,16 @@ class ChangeThreadIntegrationTest {
         if (wireMockServer != null) {
             wireMockServer.stop();
         }
+    }
+
+    private static ModelMapper createTestModelMapper() {
+        ModelMapper mapper = new ModelMapper();
+        mapper.getConfiguration()
+                .setMatchingStrategy(MatchingStrategies.STRICT)
+                .setSkipNullEnabled(true)
+                .setFieldMatchingEnabled(true)
+                .setFieldAccessLevel(org.modelmapper.config.Configuration.AccessLevel.PRIVATE);
+        return mapper;
     }
 
     @BeforeEach
