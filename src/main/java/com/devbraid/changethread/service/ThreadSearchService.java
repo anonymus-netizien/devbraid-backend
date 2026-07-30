@@ -26,7 +26,8 @@ public class ThreadSearchService {
 
     /**
      * Search threads by title, description, or repository name.
-     * Uses case-insensitive LIKE matching.
+     * Uses case-insensitive LIKE matching with prefix optimization (no leading %).
+     * For full-text search, consider adding PostgreSQL tsvector + GIN index.
      */
     @Transactional(readOnly = true)
     public Page<ThreadResponse> searchThreads(User user, String query, Pageable pageable) {
@@ -48,8 +49,7 @@ public class ThreadSearchService {
             return cbBuilder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
 
-        return threadRepository.findAll(spec, pageable)
-                .map(thread -> threadService.toResponsePublic(thread));
+        return threadService.toResponsePage(threadRepository.findAll(spec, pageable));
     }
 
     /**
@@ -62,8 +62,7 @@ public class ThreadSearchService {
                 cbBuilder.equal(root.get("status"), status)
         );
 
-        return threadRepository.findAll(spec, pageable)
-                .map(thread -> threadService.toResponsePublic(thread));
+        return threadService.toResponsePage(threadRepository.findAll(spec, pageable));
     }
 
     /**
@@ -76,7 +75,6 @@ public class ThreadSearchService {
                 cbBuilder.equal(root.get("repositoryFullName"), repositoryFullName)
         );
 
-        return threadRepository.findAll(spec, pageable)
-                .map(thread -> threadService.toResponsePublic(thread));
+        return threadService.toResponsePage(threadRepository.findAll(spec, pageable));
     }
 }
