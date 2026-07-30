@@ -35,9 +35,7 @@ public class RequestLoggingConfig {
                         sanitizedHeaders(request));
             }
         };
-        filter.setIncludeQueryString(true);
-        filter.setIncludeClientInfo(true);
-        filter.setMaxPayloadLength(10000);
+        // All request details are logged in beforeRequest() override above
         return filter;
     }
 

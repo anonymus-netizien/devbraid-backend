@@ -32,19 +32,23 @@ public class GitHubApiClient {
     private final String apiBase;
 
     public GitHubApiClient() {
-        this(DEFAULT_GITHUB_API_BASE);
+        this(new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false));
+    }
+
+    public GitHubApiClient(ObjectMapper objectMapper) {
+        this(DEFAULT_GITHUB_API_BASE, objectMapper);
     }
 
     /**
      * Package-private constructor for testing — allows overriding the API base URL.
      */
-    GitHubApiClient(String apiBase) {
+    GitHubApiClient(String apiBase, ObjectMapper objectMapper) {
         this.apiBase = apiBase;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(TIMEOUT)
                 .build();
-        this.objectMapper = new ObjectMapper()
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        this.objectMapper = objectMapper;
+        this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     /**
@@ -108,9 +112,7 @@ public class GitHubApiClient {
     public void createPullRequestComment(String token, String owner, String repo, int prNumber, String body) {
         String path = "/repos/" + owner + "/" + repo + "/issues/" + prNumber + "/comments";
         try {
-            String jsonBody = objectMapper.writeValueAsString(new java.util.LinkedHashMap<>() {{
-                put("body", body);
-            }});
+            String jsonBody = objectMapper.writeValueAsString(java.util.Map.of("body", body));
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(apiBase + path))
                     .header("Authorization", "Bearer " + token)
