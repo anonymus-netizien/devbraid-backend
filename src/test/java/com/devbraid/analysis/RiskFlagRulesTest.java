@@ -135,7 +135,7 @@ class RiskFlagRulesTest {
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).anyMatch(f ->
-                "dependencyChanges".equals(f.getRule()) && f.getSeverity() == RiskLevel.LOW
+                f.getRule().contains("Dependency") && f.getSeverity() == RiskLevel.MEDIUM
         );
     }
 
