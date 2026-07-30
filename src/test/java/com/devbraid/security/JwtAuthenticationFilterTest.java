@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.io.PrintWriter;
 import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
@@ -44,10 +45,11 @@ class JwtAuthenticationFilterTest {
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         SecurityContextHolder.clearContext();
         jwtTokenProvider = new JwtTokenProvider(SECRET, 3600000, 604800000);
         jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
+        lenient().when(response.getWriter()).thenReturn(mock(PrintWriter.class));
     }
 
     @Test
@@ -155,7 +157,13 @@ class JwtAuthenticationFilterTest {
         // filterChain called twice total
         verify(filterChain, times(2)).doFilter(request, response);
 
-        // Valid token
+        // Valid token with existing user
+        User mockUser = User.builder()
+                .id(UUID.fromString(USER_ID))
+                .email(EMAIL)
+                .fullName("Test User")
+                .build();
+        when(userRepository.findById(any(UUID.class))).thenReturn(Optional.of(mockUser));
         String token = jwtTokenProvider.createAccessToken(USER_ID, EMAIL, ROLE);
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
         jwtAuthenticationFilter.doFilterInternal(request, response, filterChain);
