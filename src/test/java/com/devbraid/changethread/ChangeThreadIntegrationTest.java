@@ -8,6 +8,8 @@ import com.devbraid.changethread.entity.ThreadStatus;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.repository.DecisionNoteRepository;
 import com.devbraid.changethread.service.ChangeThreadService;
+import com.devbraid.changethread.service.ThreadEventService;
+import com.devbraid.changethread.service.ThreadSnapshotService;
 import com.devbraid.github.client.GitHubApiClient;
 import com.devbraid.github.entity.GitHubConnection;
 import com.devbraid.github.repository.GitHubConnectionRepository;
@@ -62,6 +64,12 @@ class ChangeThreadIntegrationTest {
 
     @Mock
     private RiskAnalysisService riskAnalysisService;
+
+    @Mock
+    private ThreadSnapshotService snapshotService;
+
+    @Mock
+    private ThreadEventService eventService;
 
     @InjectMocks
     private ChangeThreadService threadService;
