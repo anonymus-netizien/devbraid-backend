@@ -25,10 +25,10 @@ public class OpenAIProvider implements AIProvider {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
-    public OpenAIProvider(AIConfig config) {
+    public OpenAIProvider(AIConfig config, ObjectMapper objectMapper) {
         this.config = config;
         this.httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -37,21 +37,17 @@ public class OpenAIProvider implements AIProvider {
             throw new IllegalStateException("OpenAI API key not configured");
         }
 
-        String requestBody = objectMapper.writeValueAsString(new java.util.LinkedHashMap<>() {{
-            put("model", config.getOpenAiModel());
-            put("messages", new Object[]{
-                    new java.util.LinkedHashMap<>() {{
-                        put("role", "system");
-                        put("content", "You are a code review analyst. Analyze code changes and provide structured risk assessments.");
-                    }},
-                    new java.util.LinkedHashMap<>() {{
-                        put("role", "user");
-                        put("content", prompt);
-                    }}
-            });
-            put("temperature", 0.3);
-            put("max_tokens", 1000);
-        }});
+        var requestBody = objectMapper.writeValueAsString(
+                java.util.Map.of(
+                        "model", config.getOpenAiModel(),
+                        "messages", new Object[]{
+                                java.util.Map.of("role", "system", "content", "You are a code review analyst. Analyze code changes and provide structured risk assessments."),
+                                java.util.Map.of("role", "user", "content", prompt)
+                        },
+                        "temperature", 0.3,
+                        "max_tokens", 1000
+                )
+        );
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(API_URL))

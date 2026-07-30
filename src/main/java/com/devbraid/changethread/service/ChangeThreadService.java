@@ -29,7 +29,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing Change Threads.
@@ -135,9 +137,11 @@ public class ChangeThreadService {
 
     @Transactional(readOnly = true)
     public Page<ThreadResponse> listThreads(User user, Pageable pageable) {
-        return threadRepository
-                .findAllByUserIdOrderByCreatedAtDesc(user.getId(), pageable)
-                .map(this::toResponse);
+        Page<ChangeThread> threadPage = threadRepository
+                .findAllByUserIdOrderByCreatedAtDesc(user.getId(), pageable);
+
+        // Batch-fetch notes for all threads in one query — eliminates N+1
+        return toResponsePage(threadPage);
     }
 
     @Transactional(readOnly = true)
@@ -259,18 +263,34 @@ public class ChangeThreadService {
     // ── Public helper for ThreadSearchService ────────────────────────
 
     /**
-     * Convert entity to response. Public for ThreadSearchService access.
+     * Convert a page of threads to responses with batch-loaded notes — eliminates N+1.
+     * Fetches all notes for all threads in a single query.
      */
-    public ThreadResponse toResponsePublic(ChangeThread thread) {
-        return toResponse(thread);
+    public Page<ThreadResponse> toResponsePage(Page<ChangeThread> threadPage) {
+        List<ChangeThread> threads = threadPage.getContent();
+        if (threads.isEmpty()) {
+            return Page.empty();
+        }
+
+        Map<UUID, List<NoteResponse>> notesByThreadId = batchLoadNoteResponsesByThreadId(
+                threads.stream().map(ChangeThread::getId).toList()
+        );
+
+        return threadPage.map(thread -> {
+            ThreadResponse response = generalModelMapper.map(thread, ThreadResponse.class);
+            response.setNotes(notesByThreadId.getOrDefault(thread.getId(), List.of()));
+            return response;
+        });
     }
 
     // ── Private helpers ──────────────────────────────────────────────
 
+    /**
+     * Single-thread conversion — acceptable for individual thread pages (1 query).
+     */
     private ThreadResponse toResponse(ChangeThread thread) {
         ThreadResponse response = generalModelMapper.map(thread, ThreadResponse.class);
 
-        // Notes require a separate DB query — set them after mapping
         List<NoteResponse> notes = noteRepository.findByThreadIdOrderByCreatedAtDesc(thread.getId())
                 .stream()
                 .map(this::toNoteResponse)
@@ -278,6 +298,19 @@ public class ChangeThreadService {
         response.setNotes(notes);
 
         return response;
+    }
+
+    /**
+     * Batch-load note responses for a list of thread IDs — 1 query instead of N.
+     */
+    private Map<UUID, List<NoteResponse>> batchLoadNoteResponsesByThreadId(List<UUID> threadIds) {
+        if (threadIds.isEmpty()) {
+            return Map.of();
+        }
+        return noteRepository.findByThreadIdInOrderByCreatedAtDesc(threadIds)
+                .stream()
+                .map(this::toNoteResponse)
+                .collect(Collectors.groupingBy(NoteResponse::getThreadId));
     }
 
     private NoteResponse toNoteResponse(DecisionNote note) {

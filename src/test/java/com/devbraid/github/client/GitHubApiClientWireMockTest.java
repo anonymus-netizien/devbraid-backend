@@ -7,6 +7,8 @@ import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.github.exception.GitHubNotFoundException;
 import com.devbraid.github.exception.GitHubRateLimitException;
 import com.devbraid.github.exception.GitHubTokenInvalidException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import org.junit.jupiter.api.*;
@@ -48,7 +50,9 @@ class GitHubApiClientWireMockTest {
 
     @BeforeEach
     void setUp() {
-        client = new GitHubApiClient(BASE_URL);
+        ObjectMapper mapper = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        client = new GitHubApiClient(BASE_URL, mapper);
         resetAllRequests();
     }
 
