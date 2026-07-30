@@ -2,8 +2,8 @@ package com.devbraid.analysis.service;
 
 import com.devbraid.ai.service.AIProvider;
 import com.devbraid.ai.service.PromptBuilder;
-import com.devbraid.analysis.dto.RiskFlagDto;
 import com.devbraid.analysis.RiskLevel;
+import com.devbraid.analysis.dto.RiskFlagDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

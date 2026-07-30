@@ -1,5 +1,6 @@
 package com.devbraid.user.service;
 
+import com.devbraid.audit.annotation.AuditAction;
 import com.devbraid.security.JwtTokenProvider;
 import com.devbraid.user.dto.request.RegisterRequest;
 import com.devbraid.user.dto.request.UpdatePasswordRequest;
@@ -20,7 +21,6 @@ import org.modelmapper.ModelMapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.devbraid.audit.annotation.AuditAction;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

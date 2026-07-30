@@ -5,7 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -17,14 +19,11 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class TestCoverageGapDetector {
 
-    private final JsonParseUtils jsonParseUtils;
-
     // File patterns that represent production code
     private static final Pattern PRODUCTION_FILE = Pattern.compile(
             "\\.(java|ts|tsx|js|jsx|py|go|rs)$",
             Pattern.CASE_INSENSITIVE
     );
-
     // Patterns that identify test files
     private static final List<Pattern> TEST_FILE_PATTERNS = List.of(
             Pattern.compile("Test\\.(java|ts)$"),
@@ -35,18 +34,17 @@ public class TestCoverageGapDetector {
             Pattern.compile("/tests/"),
             Pattern.compile("/__mocks__/")
     );
-
     // Patterns that suggest high-risk code (needs tests more urgently)
     private static final Pattern HIGH_RISK_PATH = Pattern.compile(
             "(/security/|/auth/|/crypto/|/payment/|/config/|Controller\\.java|Service\\.java|Repository\\.java)",
             Pattern.CASE_INSENSITIVE
     );
-
     // Patterns for infrastructure/config that usually don't need unit tests
     private static final Pattern INFRA_FILE = Pattern.compile(
             "(application.*\\.yml|application.*\\.properties|Dockerfile|docker-compose|pom\\.xml|package\\.json|\\.env)",
             Pattern.CASE_INSENSITIVE
     );
+    private final JsonParseUtils jsonParseUtils;
 
     /**
      * Analyze changed files for test coverage gaps.
@@ -145,5 +143,6 @@ public class TestCoverageGapDetector {
             int productionFileCount,
             int testFileCount,
             List<String> recommendations
-    ) {}
+    ) {
+    }
 }

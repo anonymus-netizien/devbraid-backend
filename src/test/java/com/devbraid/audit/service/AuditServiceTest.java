@@ -23,16 +23,13 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AuditServiceTest {
 
-    @Mock
-    private AuditLogRepository auditLogRepository;
-
-    @Mock
-    private HttpServletRequest httpRequest;
-
-    private AuditService auditService;
-
     private static final UUID USER_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
     private static final UUID ENTITY_ID = UUID.fromString("660e8400-e29b-41d4-a716-446655440001");
+    @Mock
+    private AuditLogRepository auditLogRepository;
+    @Mock
+    private HttpServletRequest httpRequest;
+    private AuditService auditService;
 
     @BeforeEach
     void setUp() {

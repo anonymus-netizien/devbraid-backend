@@ -5,7 +5,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,14 +21,11 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class CommitMessageAnalyzer {
 
-    private final JsonParseUtils jsonParseUtils;
-
     // Conventional commit prefix patterns
     private static final Pattern CONVENTIONAL_PREFIX = Pattern.compile(
             "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\\(([^)]+)\\))?(!)?:\\s*(.+)",
             Pattern.CASE_INSENSITIVE
     );
-
     // Keywords that indicate semantic intent
     private static final Map<String, List<String>> INTENT_KEYWORDS = Map.of(
             "security", List.of("security", "auth", "token", "encrypt", "decrypt", "password", "csrf", "xss", "sqli", "vulnerability"),
@@ -36,7 +36,6 @@ public class CommitMessageAnalyzer {
             "documentation", List.of("readme", "docs", "javadoc", "comment", "changelog"),
             "infrastructure", List.of("docker", "ci/cd", "deploy", "nginx", "kubernetes", "helm", "terraform")
     );
-
     // Patterns for detecting breaking changes
     private static final List<Pattern> BREAKING_PATTERNS = List.of(
             Pattern.compile("(?i)breaking\\s*change"),
@@ -45,6 +44,7 @@ public class CommitMessageAnalyzer {
             Pattern.compile("(?i)\\bincompatible\\b"),
             Pattern.compile("(?i)\\bmigrate?d?\\b.*\\bfrom\\b.*\\bto\\b")
     );
+    private final JsonParseUtils jsonParseUtils;
 
     /**
      * Analyze a serialized JSON array of commits and extract structured intent.
@@ -191,7 +191,8 @@ public class CommitMessageAnalyzer {
             Map<String, Integer> intentCounts,
             boolean hasBreakingChange,
             List<String> breakingChanges
-    ) {}
+    ) {
+    }
 
     public record CommitInsight(
             String type,
@@ -201,5 +202,6 @@ public class CommitMessageAnalyzer {
             List<String> semanticTags,
             boolean breakingChange,
             int messageLength
-    ) {}
+    ) {
+    }
 }

@@ -18,10 +18,7 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class AutoDecisionNotes {
 
-    private final JsonParseUtils jsonParseUtils;
-
     private static final int LARGE_CHANGE_THRESHOLD = 100;
-
     // Pattern → suggested note template
     private static final Map<Pattern, String> PATTERN_NOTES = new LinkedHashMap<>();
 
@@ -59,6 +56,8 @@ public class AutoDecisionNotes {
                 "Deletion detected: Verify soft vs hard delete, check for cascade effects, and ensure data retention compliance."
         );
     }
+
+    private final JsonParseUtils jsonParseUtils;
 
     /**
      * Generate suggested decision notes from changed files and commits.
@@ -150,8 +149,10 @@ public class AutoDecisionNotes {
         if (lower.endsWith(".yml") || lower.endsWith(".yaml") || lower.endsWith(".properties")) return "configuration";
 
         // Keyword-based categorization
-        if (lower.contains("security") || lower.contains("auth") || lower.contains("xss") || lower.contains("csrf")) return "security";
-        if (lower.contains("migration") || lower.contains("schema") || lower.contains("flyway") || lower.contains("database")) return "database";
+        if (lower.contains("security") || lower.contains("auth") || lower.contains("xss") || lower.contains("csrf"))
+            return "security";
+        if (lower.contains("migration") || lower.contains("schema") || lower.contains("flyway") || lower.contains("database"))
+            return "database";
         if (lower.contains("config") || lower.contains("properties") || lower.contains("env")) return "configuration";
         if (lower.contains("api") || lower.contains("controller") || lower.contains("endpoint")) return "api";
         if (lower.contains("test") || lower.contains("spec")) return "testing";
@@ -160,17 +161,18 @@ public class AutoDecisionNotes {
 
     // ── Result DTOs ─────────────────────────────────────────────────
 
+    public enum SuggestionSource {
+        FILE_ANALYSIS,
+        COMMIT_ANALYSIS,
+        PATTERN_MATCH
+    }
+
     public record SuggestedNote(
             String category,
             String content,
             SuggestionSource source,
             String sourceFile,
             int affectedLines
-    ) {}
-
-    public enum SuggestionSource {
-        FILE_ANALYSIS,
-        COMMIT_ANALYSIS,
-        PATTERN_MATCH
+    ) {
     }
 }

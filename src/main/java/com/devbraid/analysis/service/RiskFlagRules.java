@@ -1,8 +1,8 @@
 package com.devbraid.analysis.service;
 
+import com.devbraid.analysis.RiskLevel;
 import com.devbraid.analysis.dto.RiskFlagDto;
 import com.devbraid.analysis.util.JsonParseUtils;
-import com.devbraid.analysis.RiskLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -26,18 +26,16 @@ public class RiskFlagRules {
     private static final int LARGE_DIFF_THRESHOLD = 500;
     private static final int MANY_FILES_THRESHOLD = 20;
     private static final int SINGLE_FILE_LARGE_THRESHOLD = 300;
-    private final JsonParseUtils jsonParseUtils;
-
     // File patterns for cross-cutting concern detection
     private static final Set<String> CROSS_CUTTING_PATTERNS = Set.of(
             "SecurityConfig", "WebConfig", "CorsConfig", "CacheConfig",
             "RateLimiter", "Filter", "Interceptor", "Advice"
     );
-
     // Patterns suggesting tight coupling
     private static final Pattern GOD_CLASS_PATTERN = Pattern.compile(
             "(Service|Manager|Handler|Helper)\\.java$"
     );
+    private final JsonParseUtils jsonParseUtils;
 
     public List<RiskFlagDto> evaluate(String commitsJson, String changedFilesJson) {
         List<RiskFlagDto> flags = new ArrayList<>();

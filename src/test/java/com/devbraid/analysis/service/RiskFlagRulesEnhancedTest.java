@@ -1,14 +1,15 @@
 package com.devbraid.analysis.service;
 
-import com.devbraid.analysis.dto.RiskFlagDto;
 import com.devbraid.analysis.RiskLevel;
+import com.devbraid.analysis.dto.RiskFlagDto;
 import com.devbraid.analysis.util.JsonParseUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RiskFlagRulesEnhancedTest {
 
