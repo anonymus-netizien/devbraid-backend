@@ -7,16 +7,14 @@ import com.devbraid.changethread.dto.response.NoteResponse;
 import com.devbraid.changethread.dto.response.ThreadResponse;
 import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.entity.DecisionNote;
-import com.devbraid.changethread.entity.RiskLevel;
+import com.devbraid.analysis.RiskLevel;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.repository.DecisionNoteRepository;
 import com.devbraid.github.client.GitHubApiClient;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
-import com.devbraid.github.entity.GitHubConnection;
-import com.devbraid.github.exception.GitHubNotConnectedException;
-import com.devbraid.github.repository.GitHubConnectionRepository;
-import com.devbraid.github.util.PatEncryptor;
+import com.devbraid.github.service.GitHubConnectionService;
+
 import com.devbraid.user.entity.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,9 +44,8 @@ public class ChangeThreadService {
 
     private final ChangeThreadRepository threadRepository;
     private final DecisionNoteRepository noteRepository;
-    private final GitHubConnectionRepository connectionRepository;
+    private final GitHubConnectionService gitHubConnectionService;
     private final GitHubApiClient gitHubApiClient;
-    private final PatEncryptor patEncryptor;
     private final ObjectMapper objectMapper;
     private final RiskAnalysisService riskAnalysisService;
     private final ThreadSnapshotService snapshotService;
@@ -65,11 +62,7 @@ public class ChangeThreadService {
      */
     @Transactional(rollbackFor = JsonProcessingException.class)
     public ThreadResponse createThread(User user, CreateThreadRequest req) throws JsonProcessingException {
-        GitHubConnection connection = connectionRepository
-                .findByUserId(user.getId())
-                .orElseThrow(() -> new GitHubNotConnectedException("Connect GitHub first"));
-
-        String decryptedPat = decryptPat(connection);
+        String decryptedPat = gitHubConnectionService.getDecryptedPatForUser(user);
 
         String[] parts = req.getRepositoryFullName().split("/");
         if (parts.length != 2) {
@@ -189,11 +182,7 @@ public class ChangeThreadService {
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
 
-        GitHubConnection connection = connectionRepository
-                .findByUserId(user.getId())
-                .orElseThrow(() -> new GitHubNotConnectedException("Connect GitHub first"));
-
-        String decryptedPat = decryptPat(connection);
+        String decryptedPat = gitHubConnectionService.getDecryptedPatForUser(user);
         String[] parts = thread.getRepositoryFullName().split("/");
         String owner = parts[0];
         String repo = parts[1];
@@ -324,11 +313,6 @@ public class ChangeThreadService {
     private String serializeToJson(Object obj) throws JsonProcessingException {
         if (obj == null) return null;
         return objectMapper.writeValueAsString(obj);
-    }
-
-    private String decryptPat(GitHubConnection connection) {
-        // ponytail: RuntimeException from PatEncryptor propagates directly
-        return patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
     }
 
     private int countJsonArray(String json) {

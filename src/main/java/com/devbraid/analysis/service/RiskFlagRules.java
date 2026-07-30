@@ -2,7 +2,7 @@ package com.devbraid.analysis.service;
 
 import com.devbraid.analysis.dto.RiskFlagDto;
 import com.devbraid.analysis.util.JsonParseUtils;
-import com.devbraid.changethread.entity.RiskLevel;
+import com.devbraid.analysis.RiskLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

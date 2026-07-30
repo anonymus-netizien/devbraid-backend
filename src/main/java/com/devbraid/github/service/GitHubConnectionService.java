@@ -189,6 +189,19 @@ public class GitHubConnectionService {
                 .toList();
     }
 
+    /**
+     * Get decrypted PAT for the given user — centralizes PAT decryption.
+     * Eliminates direct GitHubConnectionRepository + PatEncryptor access from other modules.
+     *
+     * @param user the authenticated user
+     * @return decrypted PAT string
+     * @throws GitHubNotConnectedException if not connected
+     */
+    public String getDecryptedPatForUser(User user) {
+        var connection = getConnectionOrThrow(user);
+        return patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
+    }
+
     // ── Private helpers ──────────────────────────────────────────────
 
     private GitHubConnection getConnectionOrThrow(User user) {

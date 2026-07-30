@@ -54,7 +54,11 @@ public class DecisionNoteService {
     }
 
     @Transactional(readOnly = true)
-    public List<NoteResponse> listNotes(UUID threadId) {
+    public List<NoteResponse> listNotes(UUID threadId, User user) {
+        // Verify thread ownership before listing notes — prevents direct repository access in controller
+        threadRepository.findByIdAndUserId(threadId, user.getId())
+                .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
+
         return noteRepository.findByThreadIdOrderByCreatedAtDesc(threadId)
                 .stream()
                 .map(this::toResponse)

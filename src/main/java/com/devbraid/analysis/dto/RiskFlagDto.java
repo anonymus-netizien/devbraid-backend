@@ -1,6 +1,6 @@
 package com.devbraid.analysis.dto;
 
-import com.devbraid.changethread.entity.RiskLevel;
+import com.devbraid.analysis.RiskLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

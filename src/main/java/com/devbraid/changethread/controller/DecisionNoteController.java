@@ -4,8 +4,6 @@ import com.devbraid.changethread.dto.request.CreateNoteRequest;
 import com.devbraid.changethread.dto.request.UpdateNoteRequest;
 import com.devbraid.changethread.dto.response.NoteListItemResponse;
 import com.devbraid.changethread.dto.response.NoteResponse;
-import com.devbraid.changethread.exception.ThreadNotFoundException;
-import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.service.DecisionNoteService;
 import com.devbraid.common.ApiResponse;
 import com.devbraid.user.entity.User;
@@ -29,7 +27,6 @@ import java.util.UUID;
 public class DecisionNoteController {
 
     private final DecisionNoteService decisionNoteService;
-    private final ChangeThreadRepository threadRepository;
 
     @PostMapping("/api/v1/threads/{threadId}/notes")
     public ResponseEntity<ApiResponse<NoteResponse>> createNote(
@@ -46,10 +43,7 @@ public class DecisionNoteController {
     public ResponseEntity<ApiResponse<List<NoteResponse>>> listThreadNotes(
             @PathVariable UUID threadId,
             @AuthenticationPrincipal User user) {
-        // Verify thread ownership before listing notes
-        threadRepository.findByIdAndUserId(threadId, user.getId())
-                .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
-        List<NoteResponse> notes = decisionNoteService.listNotes(threadId);
+        List<NoteResponse> notes = decisionNoteService.listNotes(threadId, user);
         return ResponseEntity.ok(ApiResponse.success("Notes retrieved", notes));
     }
 
