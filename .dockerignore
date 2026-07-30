@@ -1,0 +1,12 @@
+target/
+.git/
+.gitignore
+.env
+.env.example
+.mvn/
+.mvnw
+mvnw
+mvnw.cmd
+README.md
+docker-compose.yml
+.code-review-graph/
