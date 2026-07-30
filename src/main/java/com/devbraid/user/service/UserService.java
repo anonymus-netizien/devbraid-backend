@@ -1,6 +1,5 @@
 package com.devbraid.user.service;
 
-import com.devbraid.common.util.TokenHasher;
 import com.devbraid.security.JwtTokenProvider;
 import com.devbraid.user.dto.request.RegisterRequest;
 import com.devbraid.user.dto.request.UpdatePasswordRequest;
@@ -22,9 +21,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HexFormat;
 
 @Slf4j
 @Service
@@ -219,6 +222,12 @@ public class UserService {
     }
 
     private String hashToken(String token) {
-        return TokenHasher.hash(token);
+        // Inline SHA-256 hash — replaces former TokenHasher utility
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 }

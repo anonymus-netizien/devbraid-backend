@@ -1,46 +1,24 @@
 package com.devbraid.common;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class ApiResponse<T> {
-    private boolean success;
-    private String message;
-    private T data;
+/**
+ * Standard API response wrapper.
+ * All controller endpoints return ResponseEntity wrapped in this record.
+ */
+public record ApiResponse<T>(boolean success, String message, T data) {
 
     public static <T> ApiResponse<T> success(String message, T data) {
-        return ApiResponse.<T>builder()
-                .success(true)
-                .message(message)
-                .data(data)
-                .build();
+        return new ApiResponse<>(true, message, data);
     }
 
     public static <T> ApiResponse<T> success(String message) {
-        return ApiResponse.<T>builder()
-                .success(true)
-                .message(message)
-                .build();
+        return new ApiResponse<>(true, message, null);
     }
 
     public static <T> ApiResponse<T> error(String message) {
-        return ApiResponse.<T>builder()
-                .success(false)
-                .message(message)
-                .build();
+        return new ApiResponse<>(false, message, null);
     }
 
     public static <T> ApiResponse<T> error(String message, T data) {
-        return ApiResponse.<T>builder()
-                .success(false)
-                .message(message)
-                .data(data)
-                .build();
+        return new ApiResponse<>(false, message, data);
     }
 }
