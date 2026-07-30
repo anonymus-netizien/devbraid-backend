@@ -14,10 +14,9 @@ import com.devbraid.github.client.GitHubApiClient;
 import com.devbraid.github.dto.response.ChangedFileDto;
 import com.devbraid.github.dto.response.CommitSummaryDto;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
-import com.devbraid.github.entity.GitHubConnection;
+import com.devbraid.github.exception.GitHubNotConnectedException;
 import com.devbraid.github.exception.GitHubTokenInvalidException;
-import com.devbraid.github.repository.GitHubConnectionRepository;
-import com.devbraid.github.util.PatEncryptor;
+import com.devbraid.github.service.GitHubConnectionService;
 import com.devbraid.user.entity.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
@@ -26,11 +25,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
 
 import java.time.OffsetDateTime;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,6 +44,7 @@ import static org.mockito.Mockito.*;
  * Uses Mockito to mock all dependencies.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("ChangeThreadService Unit Tests")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ChangeThreadServiceTest {
@@ -58,13 +59,10 @@ class ChangeThreadServiceTest {
     private DecisionNoteRepository noteRepository;
 
     @Mock
-    private GitHubConnectionRepository connectionRepository;
+    private GitHubConnectionService gitHubConnectionService;
 
     @Mock
     private GitHubApiClient gitHubApiClient;
-
-    @Mock
-    private PatEncryptor patEncryptor;
 
     @Mock
     private RiskAnalysisService riskAnalysisService;
@@ -82,7 +80,6 @@ class ChangeThreadServiceTest {
     private ObjectMapper objectMapper = new ObjectMapper();
 
     private User testUser;
-    private GitHubConnection testConnection;
 
     private static ModelMapper createTestModelMapper() {
         ModelMapper mapper = new ModelMapper();
@@ -99,21 +96,14 @@ class ChangeThreadServiceTest {
         testUser = mock(User.class);
         when(testUser.getId()).thenReturn(UUID.randomUUID());
 
-        testConnection = GitHubConnection.builder()
-                .user(testUser)
-                .encryptedPat(new byte[]{1, 2, 3})
-                .iv(new byte[]{4, 5, 6})
-                .githubUsername("testuser")
-                .connectedAt(OffsetDateTime.now())
-                .build();
+        when(gitHubConnectionService.getDecryptedPatForUser(testUser)).thenReturn("ghp_testToken123");
     }
 
     @Test
     @Order(1)
     @DisplayName("createThread() persists thread with GitHub compare data")
     void createThread_WithData_PersistsThread() throws Exception {
-        when(connectionRepository.findByUserId(any())).thenReturn(Optional.of(testConnection));
-        when(patEncryptor.decrypt(any(), any())).thenReturn("ghp_testToken123");
+
 
         var compareResult = new GitHubCompareResponse();
         compareResult.setStatus("diverged");
@@ -172,8 +162,6 @@ class ChangeThreadServiceTest {
     @Order(2)
     @DisplayName("createThread() throws GitHubTokenInvalidException for invalid token")
     void createThread_InvalidToken_ThrowsException() {
-        when(connectionRepository.findByUserId(any())).thenReturn(Optional.of(testConnection));
-        when(patEncryptor.decrypt(any(), any())).thenReturn("ghp_bad_token");
         when(gitHubApiClient.compare(any(), any(), any(), any(), any()))
                 .thenThrow(new GitHubTokenInvalidException("Invalid token"));
 
@@ -192,8 +180,6 @@ class ChangeThreadServiceTest {
     @Order(3)
     @DisplayName("createThread() propagates exception when GitHub returns 500")
     void createThread_GitHubError_PropagatesException() {
-        when(connectionRepository.findByUserId(any())).thenReturn(Optional.of(testConnection));
-        when(patEncryptor.decrypt(any(), any())).thenReturn("ghp_testToken123");
         when(gitHubApiClient.compare(any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("GitHub API error: 500"));
 
@@ -212,14 +198,15 @@ class ChangeThreadServiceTest {
     @Order(4)
     @DisplayName("createThread() throws GitHubNotConnectedException when not connected")
     void createThread_NotConnected_ThrowsException() {
-        when(connectionRepository.findByUserId(any())).thenReturn(Optional.empty());
+        when(gitHubConnectionService.getDecryptedPatForUser(testUser))
+                .thenThrow(new GitHubNotConnectedException("Connect GitHub first"));
 
         CreateThreadRequest request = new CreateThreadRequest(
                 "test-owner/test-repo", "feature/test", "main", "No Connection", null
         );
 
         assertThatThrownBy(() -> threadService.createThread(testUser, request))
-                .isInstanceOf(com.devbraid.github.exception.GitHubNotConnectedException.class)
+                .isInstanceOf(GitHubNotConnectedException.class)
                 .hasMessageContaining("Connect GitHub first");
 
         verify(threadRepository, never()).save(any());

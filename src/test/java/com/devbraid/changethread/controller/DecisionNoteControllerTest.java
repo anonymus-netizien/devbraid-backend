@@ -10,7 +10,6 @@ import com.devbraid.changethread.entity.NoteStatus;
 import com.devbraid.changethread.entity.ThreadStatus;
 import com.devbraid.changethread.exception.NoteNotFoundException;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
-import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.service.DecisionNoteService;
 import com.devbraid.common.exception.GlobalExceptionHandler;
 import com.devbraid.user.entity.User;
@@ -58,14 +57,12 @@ class DecisionNoteControllerTest {
     private MockMvc mockMvc;
     @Mock
     private DecisionNoteService decisionNoteService;
-    @Mock
-    private ChangeThreadRepository threadRepository;
     private DecisionNoteController controller;
     private User testUser;
 
     @BeforeEach
     void setUp() {
-        controller = new DecisionNoteController(decisionNoteService, threadRepository);
+        controller = new DecisionNoteController(decisionNoteService);
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -177,11 +174,8 @@ class DecisionNoteControllerTest {
     @Test
     @DisplayName("GET /api/v1/threads/{threadId}/notes returns 200 OK with notes list")
     void listThreadNotes_Returns200() throws Exception {
-        ChangeThread thread = buildThread();
-        when(threadRepository.findByIdAndUserId(THREAD_ID, USER_ID)).thenReturn(Optional.of(thread));
-
         NoteResponse note = buildNoteResponse();
-        when(decisionNoteService.listNotes(THREAD_ID)).thenReturn(List.of(note));
+        when(decisionNoteService.listNotes(THREAD_ID, testUser)).thenReturn(List.of(note));
 
         mockMvc.perform(get("/api/v1/threads/{threadId}/notes", THREAD_ID))
                 .andExpect(status().isOk())
@@ -193,22 +187,21 @@ class DecisionNoteControllerTest {
                 .andExpect(jsonPath("$.data[0].decision").value(DECISION))
                 .andExpect(jsonPath("$.data[0].rationale").value(RATIONALE));
 
-        verify(threadRepository).findByIdAndUserId(THREAD_ID, USER_ID);
-        verify(decisionNoteService).listNotes(THREAD_ID);
+        verify(decisionNoteService).listNotes(THREAD_ID, testUser);
     }
 
     @Test
     @DisplayName("GET /api/v1/threads/{threadId}/notes returns 404 when thread not found")
     void listThreadNotes_ThreadNotFound_Returns404() throws Exception {
-        when(threadRepository.findByIdAndUserId(THREAD_ID, USER_ID)).thenReturn(Optional.empty());
+        when(decisionNoteService.listNotes(THREAD_ID, testUser))
+                .thenThrow(new ThreadNotFoundException("Thread not found"));
 
         mockMvc.perform(get("/api/v1/threads/{threadId}/notes", THREAD_ID))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Thread not found"));
 
-        verify(threadRepository).findByIdAndUserId(THREAD_ID, USER_ID);
-        verify(decisionNoteService, never()).listNotes(any());
+        verify(decisionNoteService).listNotes(THREAD_ID, testUser);
     }
 
     @Test
