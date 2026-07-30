@@ -1,6 +1,7 @@
 package com.devbraid.user.controller;
 
 import com.devbraid.common.ApiResponse;
+import com.devbraid.security.CookieUtils;
 import com.devbraid.user.dto.request.*;
 import com.devbraid.user.dto.response.LoginResponse;
 import com.devbraid.user.dto.response.OtpSendResponse;
@@ -9,8 +10,11 @@ import com.devbraid.user.dto.response.UserProfileResponse;
 import com.devbraid.user.entity.User;
 import com.devbraid.user.service.OtpService;
 import com.devbraid.user.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,6 +27,9 @@ public class AuthController {
 
     private final UserService userService;
     private final OtpService otpService;
+
+    @Value("${app.jwt.refresh-expiration:604800000}")
+    private long refreshExpirationMs;
 
     public AuthController(UserService userService, OtpService otpService) {
         this.userService = userService;
@@ -63,9 +70,19 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<ApiResponse<LoginResponse>> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletResponse httpResponse) {
         log.info("AuthController :: Received login request for: {}", request.getEmail());
         LoginResponse response = userService.login(request.getEmail(), request.getPassword());
+
+        // Set refresh token as httpOnly cookie
+        long maxAgeSeconds = refreshExpirationMs / 1000;
+        CookieUtils.addRefreshTokenCookie(httpResponse, response.getRefreshToken(), maxAgeSeconds);
+
+        // Remove refresh token from response body (only keep access token)
+        response.setRefreshToken(null);
+
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
     }
 
@@ -77,9 +94,32 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<LoginResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+    public ResponseEntity<ApiResponse<LoginResponse>> refresh(
+            @Valid @RequestBody RefreshTokenRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
         log.info("AuthController :: Token refresh request received");
-        LoginResponse response = userService.refreshToken(request.getRefreshToken());
+
+        // Get refresh token from request body or cookie
+        String refreshToken = request.getRefreshToken();
+        if (refreshToken == null || refreshToken.isBlank()) {
+            refreshToken = CookieUtils.extractRefreshTokenFromCookie(httpRequest);
+        }
+
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Refresh token required"));
+        }
+
+        LoginResponse response = userService.refreshToken(refreshToken);
+
+        // Set new refresh token as httpOnly cookie
+        long maxAgeSeconds = refreshExpirationMs / 1000;
+        CookieUtils.addRefreshTokenCookie(httpResponse, response.getRefreshToken(), maxAgeSeconds);
+
+        // Remove refresh token from response body
+        response.setRefreshToken(null);
+
         return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", response));
     }
 
@@ -102,9 +142,25 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request) {
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @Valid @RequestBody RefreshTokenRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
         log.info("AuthController :: Logout request");
-        userService.logout(request.getRefreshToken());
+
+        // Get refresh token from request body or cookie
+        String refreshToken = request.getRefreshToken();
+        if (refreshToken == null || refreshToken.isBlank()) {
+            refreshToken = CookieUtils.extractRefreshTokenFromCookie(httpRequest);
+        }
+
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            userService.logout(refreshToken);
+        }
+
+        // Clear the refresh token cookie
+        CookieUtils.clearRefreshTokenCookie(httpResponse);
+
         return ResponseEntity.ok(ApiResponse.success("Logged out successfully", null));
     }
 }

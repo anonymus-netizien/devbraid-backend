@@ -20,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -33,6 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("AuthController Unit Tests")
 @ExtendWith(MockitoExtension.class)
@@ -55,6 +57,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         authController = new AuthController(userService, otpService);
+        ReflectionTestUtils.setField(authController, "refreshExpirationMs", 604800000L);
         mockMvc = MockMvcBuilders
                 .standaloneSetup(authController)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -137,7 +140,7 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/auth/login returns 200 OK with LoginResponse")
+    @DisplayName("POST /api/v1/auth/login returns 200 OK with accessToken in body and refreshToken in httpOnly cookie")
     void login_Returns200WithLoginResponse() throws Exception {
         LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken(ACCESS_TOKEN)
@@ -160,12 +163,19 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Login successful"))
                 .andExpect(jsonPath("$.data.accessToken").value(ACCESS_TOKEN))
-                .andExpect(jsonPath("$.data.refreshToken").value(REFRESH_TOKEN))
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
                 .andExpect(jsonPath("$.data.email").value(EMAIL))
                 .andExpect(jsonPath("$.data.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.data.role").value("DEVELOPER"))
                 .andExpect(jsonPath("$.data.issuedAt").exists())
-                .andExpect(jsonPath("$.data.expiresAt").exists());
+                .andExpect(jsonPath("$.data.expiresAt").exists())
+                .andExpect(result -> {
+                    String setCookie = result.getResponse().getHeader("Set-Cookie");
+                    assertTrue(setCookie != null && setCookie.contains("refreshToken="));
+                    assertTrue(setCookie.contains("HttpOnly"));
+                    assertTrue(setCookie.contains("Secure"));
+                    assertTrue(setCookie.contains("SameSite=Lax"));
+                });
 
         verify(userService).login(EMAIL, PASSWORD);
     }
@@ -207,7 +217,7 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/auth/refresh returns 200 OK with new tokens")
+    @DisplayName("POST /api/v1/auth/refresh returns 200 OK with new accessToken in body and new refreshToken in httpOnly cookie")
     void refresh_Returns200WithNewTokens() throws Exception {
         LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken("new-access-token")
@@ -230,7 +240,13 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Token refreshed successfully"))
                 .andExpect(jsonPath("$.data.accessToken").value("new-access-token"))
-                .andExpect(jsonPath("$.data.refreshToken").value("new-refresh-token"));
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
+                .andExpect(result -> {
+                    String setCookie = result.getResponse().getHeader("Set-Cookie");
+                    assert setCookie != null && setCookie.contains("refreshToken=new-refresh-token");
+                    assertTrue(setCookie.contains("HttpOnly"));
+                    assertTrue(setCookie.contains("Secure"));
+                });
 
         verify(userService).refreshToken(REFRESH_TOKEN);
     }

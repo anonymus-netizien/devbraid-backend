@@ -1,6 +1,5 @@
 package com.devbraid.user.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,6 +9,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class RefreshTokenRequest {
 
-    @NotBlank(message = "Refresh token is required")
+    // Optional — can also come from httpOnly cookie
     private String refreshToken;
 }
