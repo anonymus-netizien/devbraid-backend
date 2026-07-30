@@ -1,8 +1,9 @@
 package com.devbraid.analysis.service;
 
 import com.devbraid.ai.service.AIProvider;
+import com.devbraid.ai.service.PromptBuilder;
 import com.devbraid.analysis.dto.RiskFlagDto;
-import com.devbraid.changethread.entity.RiskLevel;
+import com.devbraid.analysis.RiskLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class RiskAnalysisService {
     private final RiskFlagRules riskFlagRules;
     private final EvidenceExtractor evidenceExtractor;
     private final AIProvider aiProvider;
+    private final PromptBuilder promptBuilder;
 
     /**
      * Run full risk analysis (deterministic + AI).
@@ -46,7 +48,7 @@ public class RiskAnalysisService {
 
         // Phase 2: AI analysis — gracefully degrade if unavailable
         try {
-            String aiResult = aiProvider.analyze(buildAnalysisPrompt(commitsJson, changedFilesJson, flags));
+            String aiResult = aiProvider.analyze(promptBuilder.buildAnalysisPrompt(commitsJson, changedFilesJson, flags));
             report.put("aiAnalysis", aiResult);
             report.put("aiAnalyzed", true);
         } catch (Exception e) {
@@ -58,16 +60,5 @@ public class RiskAnalysisService {
         return report;
     }
 
-    private String buildAnalysisPrompt(String commitsJson, String changedFilesJson, List<RiskFlagDto> flags) {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("Analyze these code changes and provide a structured risk assessment.\n\n");
-        prompt.append("Changed files:\n").append(changedFilesJson != null ? changedFilesJson : "N/A").append("\n\n");
-        prompt.append("Commits:\n").append(commitsJson != null ? commitsJson : "N/A").append("\n\n");
-        prompt.append("Pre-computed risk flags:\n");
-        for (RiskFlagDto flag : flags) {
-            prompt.append("- ").append(flag.getRule()).append(": ").append(flag.getMessage()).append("\n");
-        }
-        prompt.append("\nProvide: 1) Risk summary 2) Key concerns 3) Recommendations");
-        return prompt.toString();
-    }
+
 }

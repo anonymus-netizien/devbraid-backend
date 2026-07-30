@@ -1,6 +1,6 @@
 package com.devbraid.changethread.dto.response;
 
-import com.devbraid.changethread.entity.RiskLevel;
+import com.devbraid.analysis.RiskLevel;
 import com.devbraid.changethread.entity.ThreadSource;
 import com.devbraid.changethread.entity.ThreadStatus;
 import lombok.AllArgsConstructor;

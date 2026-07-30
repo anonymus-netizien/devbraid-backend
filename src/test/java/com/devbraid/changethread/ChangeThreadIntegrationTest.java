@@ -11,9 +11,7 @@ import com.devbraid.changethread.service.ChangeThreadService;
 import com.devbraid.changethread.service.ThreadEventService;
 import com.devbraid.changethread.service.ThreadSnapshotService;
 import com.devbraid.github.client.GitHubApiClient;
-import com.devbraid.github.entity.GitHubConnection;
-import com.devbraid.github.repository.GitHubConnectionRepository;
-import com.devbraid.github.util.PatEncryptor;
+import com.devbraid.github.service.GitHubConnectionService;
 import com.devbraid.user.entity.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -28,7 +26,6 @@ import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
 
 import java.time.OffsetDateTime;
-import java.util.Optional;
 import java.util.UUID;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.resetAllRequests;
@@ -44,7 +41,6 @@ class ChangeThreadIntegrationTest {
     private static final int WIREMOCK_PORT = 8098;
     private static WireMockServer wireMockServer;
     private static User testUser;
-    private static GitHubConnection testConnection;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -56,13 +52,10 @@ class ChangeThreadIntegrationTest {
     private DecisionNoteRepository noteRepository;
 
     @Mock
-    private GitHubConnectionRepository connectionRepository;
+    private GitHubConnectionService gitHubConnectionService;
 
     @Mock
     private GitHubApiClient gitHubApiClient;
-
-    @Mock
-    private PatEncryptor patEncryptor;
 
     @Mock
     private RiskAnalysisService riskAnalysisService;
@@ -88,14 +81,6 @@ class ChangeThreadIntegrationTest {
         testUser = mock(User.class);
         lenient().when(testUser.getId()).thenReturn(UUID.randomUUID());
         lenient().when(testUser.getEmail()).thenReturn("test@example.com");
-
-        testConnection = GitHubConnection.builder()
-                .user(testUser)
-                .encryptedPat(new byte[]{1, 2, 3})
-                .iv(new byte[]{4, 5, 6})
-                .githubUsername("testuser")
-                .connectedAt(OffsetDateTime.now())
-                .build();
     }
 
     @AfterAll
@@ -118,9 +103,8 @@ class ChangeThreadIntegrationTest {
     @BeforeEach
     void setUp() {
         resetAllRequests();
-        reset(threadRepository, noteRepository, connectionRepository, gitHubApiClient, patEncryptor, riskAnalysisService);
-        lenient().when(connectionRepository.findByUserId(any())).thenReturn(Optional.of(testConnection));
-        lenient().when(patEncryptor.decrypt(any(), any())).thenReturn("ghp_testToken123456");
+        reset(threadRepository, noteRepository, gitHubApiClient, riskAnalysisService, gitHubConnectionService);
+        lenient().when(gitHubConnectionService.getDecryptedPatForUser(testUser)).thenReturn("ghp_testToken123456");
         lenient().when(noteRepository.findByThreadIdOrderByCreatedAtDesc(any())).thenReturn(java.util.List.of());
     }
 

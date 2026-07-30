@@ -1,5 +1,6 @@
 package com.devbraid.changethread.entity;
 
+import com.devbraid.analysis.RiskLevel;
 import com.devbraid.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;

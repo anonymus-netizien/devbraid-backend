@@ -1,6 +1,7 @@
 package com.devbraid.brief.service;
 
 import com.devbraid.ai.service.AIProvider;
+import com.devbraid.ai.service.PromptBuilder;
 import com.devbraid.brief.dto.BriefListItemResponse;
 import com.devbraid.brief.dto.BriefResponse;
 import com.devbraid.brief.entity.ChangeBrief;
@@ -29,6 +30,7 @@ public class BriefBuilderService {
     private final ChangeBriefRepository briefRepository;
     private final ChangeThreadRepository threadRepository;
     private final AIProvider aiProvider;
+    private final PromptBuilder promptBuilder;
     private final ModelMapper generalModelMapper;
 
     /**
@@ -46,10 +48,10 @@ public class BriefBuilderService {
 
         String content;
         try {
-            content = aiProvider.analyze(buildBriefPrompt(thread));
+            content = aiProvider.analyze(promptBuilder.buildBriefPrompt(thread));
         } catch (Exception e) {
             log.warn("AI brief generation unavailable, using template fallback: {}", e.getMessage());
-            content = buildTemplateBrief(thread);
+            content = promptBuilder.buildTemplateBrief(thread);
         }
 
         // Check if brief already exists
@@ -111,58 +113,6 @@ public class BriefBuilderService {
         return briefRepository.findByThreadId(threadId)
                 .map(this::toResponse)
                 .orElse(null);
-    }
-
-    private String buildBriefPrompt(ChangeThread thread) {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("Generate a structured Change Brief for this code change.\n\n");
-        prompt.append("## Thread: ").append(thread.getTitle()).append("\n");
-        prompt.append("Repository: ").append(thread.getRepositoryFullName()).append("\n");
-        prompt.append("Branch: ").append(thread.getHeadBranch()).append(" → ").append(thread.getBaseBranch()).append("\n\n");
-
-        if (thread.getCommits() != null) {
-            prompt.append("### Commits\n").append(thread.getCommits()).append("\n\n");
-        }
-        if (thread.getChangedFiles() != null) {
-            prompt.append("### Changed Files\n").append(thread.getChangedFiles()).append("\n\n");
-        }
-        if (thread.getRiskReport() != null) {
-            prompt.append("### Risk Assessment\n").append(thread.getRiskReport()).append("\n\n");
-        }
-
-        prompt.append("Generate a Markdown brief with:\n");
-        prompt.append("1. **Summary** — What changed and why\n");
-        prompt.append("2. **Key Changes** — List of important modifications\n");
-        prompt.append("3. **Risk Assessment** — Potential risks and mitigations\n");
-        prompt.append("4. **Testing Recommendations** — What to test\n");
-
-        return prompt.toString();
-    }
-
-    private String buildTemplateBrief(ChangeThread thread) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("# Change Brief: ").append(thread.getTitle()).append("\n\n");
-        sb.append("**Repository:** ").append(thread.getRepositoryFullName()).append("\n");
-        sb.append("**Branch:** ").append(thread.getHeadBranch()).append(" → ").append(thread.getBaseBranch()).append("\n\n");
-        sb.append("## Summary\n\n");
-        sb.append("This change encompasses modifications across ").append(thread.getRepositoryFullName()).append(" ");
-        sb.append("from branch ").append(thread.getHeadBranch()).append(" into ").append(thread.getBaseBranch()).append(".\n\n");
-
-        if (thread.getRiskLevel() != null) {
-            sb.append("## Risk Assessment\n\n");
-            sb.append("**Overall Risk:** ").append(thread.getRiskLevel()).append("\n\n");
-        }
-
-        if (thread.getRiskReport() != null) {
-            sb.append("### Risk Flags\n\n");
-            sb.append(thread.getRiskReport()).append("\n\n");
-        }
-
-        sb.append("---\n\n");
-        sb.append("*This brief was generated using template fallback (AI service unavailable).\n");
-        sb.append("Configure OPENAI_API_KEY for AI-enhanced briefs.*\n");
-
-        return sb.toString();
     }
 
     private BriefResponse toResponse(ChangeBrief brief) {
