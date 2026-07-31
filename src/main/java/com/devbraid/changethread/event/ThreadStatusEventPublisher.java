@@ -4,6 +4,7 @@ import com.devbraid.changethread.entity.ThreadStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -19,8 +20,10 @@ public class ThreadStatusEventPublisher {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-    // ponytail: no try/catch — WebSocket failures propagate to GlobalExceptionHandler.
+    // ponytail: fire-and-forget — @Async runs this off the request thread, so a WebSocket
+    // broadcast failure can never fail the REST call that triggered it (no try/catch needed).
     // Simple record payload avoids SimpMessagingTemplate.convertAndSend overload ambiguity.
+    @Async
     public void publishStatus(UUID threadId, ThreadStatus status) {
         messagingTemplate.convertAndSend(
                 "/topic/threads/" + threadId,

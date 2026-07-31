@@ -1,7 +1,5 @@
 package com.devbraid.brief.service;
 
-import com.devbraid.ai.service.AIProvider;
-import com.devbraid.ai.service.PromptBuilder;
 import com.devbraid.brief.dto.BriefListItemResponse;
 import com.devbraid.brief.dto.BriefResponse;
 import com.devbraid.brief.entity.ChangeBrief;
@@ -31,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @DisplayName("BriefBuilderService Unit Tests")
@@ -47,10 +46,7 @@ class BriefBuilderServiceTest {
     private ChangeThreadRepository threadRepository;
 
     @Mock
-    private AIProvider aiProvider;
-
-    @Mock
-    private PromptBuilder promptBuilder;
+    private BriefContentGenerator briefContentGenerator;
 
     @Mock
     private ModelMapper generalModelMapper;
@@ -90,8 +86,8 @@ class BriefBuilderServiceTest {
     void generateBrief_WithAI_SavesAndReturnsBrief() throws Exception {
         when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
                 .thenReturn(Optional.of(testThread));
-        when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
-        when(aiProvider.analyze("Test prompt")).thenReturn("**Summary** Added auth [commit:abc123]. **Risk** Low [inference].");
+        when(briefContentGenerator.generateContent(testThread))
+                .thenReturn("**Summary** Added auth [commit:abc123]. **Risk** Low [inference].");
         when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.empty());
         when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
         when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
@@ -110,20 +106,34 @@ class BriefBuilderServiceTest {
         assertThat(response.getContent()).isEqualTo("**Summary** Added auth [commit:abc123]. **Risk** Low [inference].");
         assertThat(response.getPublishedToGithub()).isFalse();
         verify(briefRepository).save(any(ChangeBrief.class));
-        verify(aiProvider).analyze("Test prompt");
+        verify(briefContentGenerator).generateContent(testThread);
     }
 
     @Test
-    @DisplayName("generateBrief() throws RuntimeException when AI is unavailable")
-    void generateBrief_AIFailure_throwsRuntimeException() throws Exception {
+    @DisplayName("generateBrief() uses template content when AI is unavailable")
+    void generateBrief_AIUnavailable_UsesTemplateContent() throws Exception {
         when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
                 .thenReturn(Optional.of(testThread));
-        when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
-        when(aiProvider.analyze("Test prompt")).thenThrow(new RuntimeException("API unavailable"));
+        // The @FallbackMethod aspect returns the template when AI fails; the service
+        // just consumes the generator's result (no try/catch in the service layer).
+        when(briefContentGenerator.generateContent(testThread)).thenReturn("Template content");
+        when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.empty());
+        when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
+        when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
+                .thenAnswer(invocation -> {
+                    BriefResponse r = new BriefResponse();
+                    r.setId(testBrief.getId());
+                    r.setThreadId(testThread.getId());
+                    r.setContent("Template content");
+                    return r;
+                });
 
-        assertThatThrownBy(() -> briefBuilderService.generateBrief(testUser, testThread.getId()))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("AI brief generation failed");
+        BriefResponse response = briefBuilderService.generateBrief(testUser, testThread.getId());
+
+        assertThat(response).isNotNull();
+        assertThat(response.getContent()).isEqualTo("Template content");
+        verify(briefRepository).save(any(ChangeBrief.class));
+        verify(briefContentGenerator).generateContent(testThread);
     }
 
     @Test
@@ -131,8 +141,8 @@ class BriefBuilderServiceTest {
     void generateBrief_ExistingBrief_UpdatesContent() throws Exception {
         when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
                 .thenReturn(Optional.of(testThread));
-        when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
-        when(aiProvider.analyze("Test prompt")).thenReturn("Updated content [file:src/auth/AuthService.java]");
+        when(briefContentGenerator.generateContent(testThread))
+                .thenReturn("Updated content [file:src/auth/AuthService.java]");
         when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.of(testBrief));
         when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
         when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
@@ -156,9 +166,7 @@ class BriefBuilderServiceTest {
     void generateBrief_AIContentWithoutMarkers_UsesTemplateFallback() throws Exception {
         when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
                 .thenReturn(Optional.of(testThread));
-        when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
-        when(aiProvider.analyze("Test prompt")).thenReturn("Plausible markdown with no markers");
-        when(promptBuilder.buildTemplateBrief(testThread)).thenReturn("Template content");
+        when(briefContentGenerator.generateContent(testThread)).thenReturn("Template content");
         when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.empty());
         when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
         when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
@@ -174,8 +182,7 @@ class BriefBuilderServiceTest {
 
         assertThat(response).isNotNull();
         assertThat(response.getContent()).isEqualTo("Template content");
-        verify(aiProvider).analyze("Test prompt");
-        verify(promptBuilder).buildTemplateBrief(testThread);
+        verify(briefContentGenerator).generateContent(testThread);
     }
 
     @Test
