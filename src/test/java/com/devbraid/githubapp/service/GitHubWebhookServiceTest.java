@@ -3,6 +3,9 @@ package com.devbraid.githubapp.service;
 import com.devbraid.changethread.service.ChangeThreadService;
 import com.devbraid.githubapp.entity.GitHubAppInstallation;
 import com.devbraid.githubapp.entity.GitHubWebhook;
+import com.devbraid.githubapp.exception.WebhookNotFoundException;
+import com.devbraid.githubapp.exception.WebhookPayloadInvalidException;
+import com.devbraid.githubapp.exception.WebhookSignatureInvalidException;
 import com.devbraid.githubapp.repository.GitHubAppInstallationRepository;
 import com.devbraid.githubapp.repository.GitHubWebhookRepository;
 import com.devbraid.user.entity.User;
@@ -18,6 +21,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.OffsetDateTime;
@@ -25,7 +29,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @DisplayName("GitHubWebhookService Unit Tests")
@@ -69,10 +74,11 @@ class GitHubWebhookServiceTest {
     class SignatureVerification {
 
         @Test
-        @DisplayName("Returns false when webhook secret is not configured")
-        void verifySignature_noSecret_returnsFalse() {
+        @DisplayName("Throws when webhook secret is not configured")
+        void verifySignature_noSecret_throwsException() {
             ReflectionTestUtils.setField(webhookService, "webhookSecret", "");
-            assertFalse(webhookService.verifySignature("payload".getBytes(), "sha256=abc"));
+            assertThrows(WebhookSignatureInvalidException.class,
+                    () -> webhookService.verifySignature("payload".getBytes(), "sha256=abc"));
         }
 
         @Test
@@ -103,7 +109,7 @@ class GitHubWebhookServiceTest {
 
         @Test
         @DisplayName("Deduplicates concurrent webhook via DataIntegrityViolationException")
-        void processWebhook_concurrentDuplicate_handlesGracefully() throws Exception {
+        void processWebhook_concurrentDuplicate_handlesGracefully() {
             String deliveryId = "test-delivery-123";
             GitHubWebhook existing = GitHubWebhook.builder()
                     .id(UUID.randomUUID())
@@ -114,7 +120,7 @@ class GitHubWebhookServiceTest {
                     .build();
 
             when(webhookRepository.save(any(GitHubWebhook.class)))
-                    .thenThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate key"));
+                    .thenThrow(new DataIntegrityViolationException("duplicate key"));
             when(webhookRepository.findByDeliveryId(deliveryId)).thenReturn(Optional.of(existing));
 
             JsonNode payload = objectMapper.createObjectNode();
@@ -122,6 +128,19 @@ class GitHubWebhookServiceTest {
 
             assertNotNull(response);
             assertEquals(deliveryId, response.getDeliveryId());
+        }
+
+        @Test
+        @DisplayName("Throws WebhookNotFoundException when concurrent duplicate not found")
+        void processWebhook_concurrentDuplicateNotFound_throwsException() {
+            String deliveryId = "missing-delivery";
+            when(webhookRepository.save(any(GitHubWebhook.class)))
+                    .thenThrow(new DataIntegrityViolationException("duplicate key"));
+            when(webhookRepository.findByDeliveryId(deliveryId)).thenReturn(Optional.empty());
+
+            JsonNode payload = objectMapper.createObjectNode();
+            assertThrows(WebhookNotFoundException.class,
+                    () -> webhookService.processWebhook("push", deliveryId, null, payload, 12345L));
         }
 
         @Test
@@ -149,47 +168,15 @@ class GitHubWebhookServiceTest {
         }
 
         @Test
-        @DisplayName("Records processing error when handler throws exception")
-        void processWebhook_handlerThrows_recordsError() throws Exception {
-            String deliveryId = "error-delivery-789";
-            when(installationRepository.findByInstallationId(12345L))
-                    .thenReturn(Optional.of(testInstallation));
+        @DisplayName("Throws WebhookPayloadInvalidException when payload serialization fails")
+        void processWebhook_serializationFails_throwsException() throws Exception {
+            String deliveryId = "bad-payload";
+            JsonNode badPayload = mock(JsonNode.class);
+            doThrow(new com.fasterxml.jackson.core.JsonProcessingException("fail") {
+            }).when(objectMapper).writeValueAsString(badPayload);
 
-            GitHubWebhook saved = GitHubWebhook.builder()
-                    .id(UUID.randomUUID())
-                    .deliveryId(deliveryId)
-                    .eventType("pull_request")
-                    .installationId(12345L)
-                    .processed(false)
-                    .receivedAt(OffsetDateTime.now())
-                    .build();
-            when(webhookRepository.save(any(GitHubWebhook.class))).thenReturn(saved);
-            when(changeThreadService.createThread(any(), any()))
-                    .thenThrow(new RuntimeException("GitHub API timeout"));
-
-            com.fasterxml.jackson.databind.node.ObjectNode payload = objectMapper.createObjectNode();
-            payload.put("action", "opened");
-            com.fasterxml.jackson.databind.node.ObjectNode repoNode = objectMapper.createObjectNode();
-            repoNode.put("full_name", "owner/repo");
-            payload.set("repository", repoNode);
-            com.fasterxml.jackson.databind.node.ObjectNode prNode = objectMapper.createObjectNode();
-            prNode.put("number", 1);
-            prNode.put("title", "PR");
-            com.fasterxml.jackson.databind.node.ObjectNode headNode = objectMapper.createObjectNode();
-            headNode.put("ref", "feature");
-            prNode.set("head", headNode);
-            com.fasterxml.jackson.databind.node.ObjectNode baseNode = objectMapper.createObjectNode();
-            baseNode.put("ref", "main");
-            prNode.set("base", baseNode);
-            payload.set("pull_request", prNode);
-
-            var response = webhookService.processWebhook("pull_request", deliveryId, "opened", payload, 12345L);
-
-            assertNotNull(response);
-            ArgumentCaptor<GitHubWebhook> captor = ArgumentCaptor.forClass(GitHubWebhook.class);
-            verify(webhookRepository, times(2)).save(captor.capture());
-            assertNotNull(captor.getAllValues().get(1).getProcessingError());
-            assertTrue(captor.getAllValues().get(1).getProcessingError().contains("GitHub API timeout"));
+            assertThrows(WebhookPayloadInvalidException.class,
+                    () -> webhookService.processWebhook("push", deliveryId, null, badPayload, 12345L));
         }
     }
 
@@ -213,6 +200,13 @@ class GitHubWebhookServiceTest {
                     .receivedAt(OffsetDateTime.now())
                     .build();
             when(webhookRepository.save(any(GitHubWebhook.class))).thenReturn(saved);
+
+            com.devbraid.changethread.dto.response.ThreadResponse threadResponse =
+                    com.devbraid.changethread.dto.response.ThreadResponse.builder()
+                            .id(UUID.randomUUID())
+                            .title("Test PR")
+                            .build();
+            when(changeThreadService.createThread(eq(testUser), any())).thenReturn(threadResponse);
 
             com.fasterxml.jackson.databind.node.ObjectNode payload = objectMapper.createObjectNode();
             payload.put("action", "opened");
@@ -255,13 +249,12 @@ class GitHubWebhookServiceTest {
                     .build();
             when(webhookRepository.save(any(GitHubWebhook.class))).thenReturn(saved);
 
-            JsonNode payload = objectMapper.createObjectNode()
-                    .put("ref", "refs/heads/main");
-            ((com.fasterxml.jackson.databind.node.ObjectNode) payload)
-                    .set("repository", objectMapper.createObjectNode()
-                            .put("full_name", "owner/repo"));
-            ((com.fasterxml.jackson.databind.node.ObjectNode) payload)
-                    .set("commits", objectMapper.createArrayNode());
+            com.fasterxml.jackson.databind.node.ObjectNode payload = objectMapper.createObjectNode();
+            payload.put("ref", "refs/heads/main");
+            com.fasterxml.jackson.databind.node.ObjectNode repoNode = objectMapper.createObjectNode();
+            repoNode.put("full_name", "owner/repo");
+            payload.set("repository", repoNode);
+            payload.set("commits", objectMapper.createArrayNode());
 
             var response = webhookService.processWebhook("push", deliveryId, null, payload, 12345L);
 
@@ -286,7 +279,6 @@ class GitHubWebhookServiceTest {
             when(webhookRepository.save(any(GitHubWebhook.class))).thenReturn(saved);
 
             JsonNode payload = objectMapper.createObjectNode();
-
             var response = webhookService.processWebhook("ping", deliveryId, null, payload, 12345L);
 
             assertNotNull(response);
@@ -341,8 +333,8 @@ class GitHubWebhookServiceTest {
                     .build();
             when(webhookRepository.save(any(GitHubWebhook.class))).thenReturn(saved);
 
-            JsonNode payload = objectMapper.createObjectNode()
-                    .put("action", "closed");
+            com.fasterxml.jackson.databind.node.ObjectNode payload = objectMapper.createObjectNode();
+            payload.put("action", "closed");
 
             var response = webhookService.processWebhook("pull_request", deliveryId, "closed", payload, 12345L);
 

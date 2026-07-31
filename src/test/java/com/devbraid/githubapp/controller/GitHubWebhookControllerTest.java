@@ -1,6 +1,8 @@
 package com.devbraid.githubapp.controller;
 
+import com.devbraid.common.exception.GlobalExceptionHandler;
 import com.devbraid.githubapp.dto.response.WebhookResponse;
+import com.devbraid.githubapp.exception.WebhookSignatureInvalidException;
 import com.devbraid.githubapp.service.GitHubWebhookService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,23 +22,25 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DisplayName("GitHubWebhookController Unit Tests")
 @ExtendWith(MockitoExtension.class)
 class GitHubWebhookControllerTest {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private MockMvc mockMvc;
     @Mock
     private GitHubWebhookService webhookService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
     private GitHubWebhookController controller;
 
     @BeforeEach
     void setUp() {
         controller = new GitHubWebhookController(webhookService, objectMapper);
-        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
     }
 
     @Test
@@ -67,7 +71,7 @@ class GitHubWebhookControllerTest {
     @DisplayName("POST /api/v1/webhooks/github returns 401 on invalid signature")
     void handleGitHubWebhook_invalidSignature_returns401() throws Exception {
         when(webhookService.verifySignature(any(byte[].class), eq("sha256=invalid")))
-                .thenReturn(false);
+                .thenThrow(new WebhookSignatureInvalidException("Invalid webhook signature"));
 
         mockMvc.perform(post("/api/v1/webhooks/github")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -76,7 +80,7 @@ class GitHubWebhookControllerTest {
                         .content("{}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Invalid signature"));
+                .andExpect(jsonPath("$.message").value("Invalid webhook signature"));
     }
 
     @Test

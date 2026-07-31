@@ -5,9 +5,14 @@ import com.devbraid.changethread.service.ChangeThreadService;
 import com.devbraid.githubapp.dto.response.WebhookResponse;
 import com.devbraid.githubapp.entity.GitHubAppInstallation;
 import com.devbraid.githubapp.entity.GitHubWebhook;
+import com.devbraid.githubapp.exception.WebhookNotFoundException;
+import com.devbraid.githubapp.exception.WebhookPayloadInvalidException;
+import com.devbraid.githubapp.exception.WebhookProcessingException;
+import com.devbraid.githubapp.exception.WebhookSignatureInvalidException;
 import com.devbraid.githubapp.repository.GitHubAppInstallationRepository;
 import com.devbraid.githubapp.repository.GitHubWebhookRepository;
 import com.devbraid.user.entity.User;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -20,16 +25,16 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 /**
  * Service for processing GitHub App webhook events.
  * Handles signature verification, event dispatching, and auto-thread creation.
+ * <p>
+ * All exceptions propagate to GlobalExceptionHandler — no try-catches here.
  */
 @Slf4j
 @Service
@@ -50,11 +55,11 @@ public class GitHubWebhookService {
      * @param payload   raw request body
      * @param signature X-Hub-Signature-256 header value
      * @return true if signature is valid
+     * @throws WebhookSignatureInvalidException if secret is not configured or signature is invalid
      */
     public boolean verifySignature(byte[] payload, String signature) {
         if (webhookSecret == null || webhookSecret.isBlank()) {
-            log.error("CRITICAL: Webhook secret not configured — rejecting all webhooks");
-            return false;
+            throw new WebhookSignatureInvalidException("Webhook secret not configured");
         }
 
         if (signature == null || !signature.startsWith("sha256=")) {
@@ -73,9 +78,8 @@ public class GitHubWebhookService {
             return MessageDigest.isEqual(
                     expectedHex.getBytes(StandardCharsets.UTF_8),
                     signature.getBytes(StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            log.error("Signature verification failed", e);
-            return false;
+        } catch (GeneralSecurityException e) {
+            throw new WebhookSignatureInvalidException("Signature verification failed: " + e.getMessage());
         }
     }
 
@@ -83,17 +87,19 @@ public class GitHubWebhookService {
      * Process a received webhook event.
      * Stores the event and dispatches to appropriate handler.
      *
-     * @param eventType  X-GitHub-Event header
-     * @param deliveryId X-GitHub-Delivery header
-     * @param action     event action (e.g., "opened", "synchronize")
-     * @param payload    parsed JSON payload
+     * @param eventType      X-GitHub-Event header
+     * @param deliveryId     X-GitHub-Delivery header
+     * @param action         event action (e.g., "opened", "synchronize")
+     * @param payload        parsed JSON payload
      * @param installationId GitHub App installation ID
      * @return webhook response
+     * @throws WebhookPayloadInvalidException if payload cannot be serialized
+     * @throws WebhookNotFoundException       if concurrent duplicate delivery is not found
      */
     @Transactional
     public WebhookResponse processWebhook(String eventType, String deliveryId,
-                                           String action, JsonNode payload,
-                                           Long installationId) {
+                                          String action, JsonNode payload,
+                                          Long installationId) {
         // Store the raw webhook event — UNIQUE constraint on delivery_id handles dedup
         // Concurrent duplicates are caught by DataIntegrityViolationException below
         GitHubWebhook webhook;
@@ -110,22 +116,17 @@ public class GitHubWebhookService {
         } catch (DataIntegrityViolationException e) {
             log.info("Concurrent duplicate delivery {} — fetching existing", deliveryId);
             return webhookRepository.findByDeliveryId(deliveryId)
-                    .map(this::toResponse).orElse(null);
+                    .map(this::toResponse)
+                    .orElseThrow(() -> new WebhookNotFoundException(
+                            "Duplicate delivery " + deliveryId + " not found after constraint violation"));
         }
 
         log.info("Received webhook: event={}, action={}, delivery={}", eventType, action, deliveryId);
 
-        try {
-            dispatchEvent(eventType, action, payload, installationId);
-            webhook.setProcessed(true);
-            webhook.setProcessedAt(OffsetDateTime.now());
-            webhookRepository.save(webhook);
-        } catch (Exception e) {
-            String errorMsg = e.getClass().getSimpleName() + ": " + e.getMessage();
-            log.error("Failed to process webhook {}: {}", deliveryId, errorMsg, e);
-            webhook.setProcessingError(errorMsg);
-            webhookRepository.save(webhook);
-        }
+        dispatchEvent(eventType, action, payload, installationId);
+        webhook.setProcessed(true);
+        webhook.setProcessedAt(OffsetDateTime.now());
+        webhookRepository.save(webhook);
 
         return toResponse(webhook);
     }
@@ -133,7 +134,7 @@ public class GitHubWebhookService {
     /**
      * Dispatch webhook event to appropriate handler.
      */
-    private void dispatchEvent(String eventType, String action, JsonNode payload, Long installationId) throws Exception {
+    private void dispatchEvent(String eventType, String action, JsonNode payload, Long installationId) {
         switch (eventType) {
             case "pull_request" -> handlePullRequest(action, payload, installationId);
             case "push" -> handlePush(payload, installationId);
@@ -147,7 +148,7 @@ public class GitHubWebhookService {
     /**
      * Handle pull_request events — auto-create ChangeThread on PR opened/synchronized.
      */
-    private void handlePullRequest(String action, JsonNode payload, Long installationId) throws Exception {
+    private void handlePullRequest(String action, JsonNode payload, Long installationId) {
         if (!"opened".equals(action) && !"synchronize".equals(action)) {
             log.debug("Ignoring pull_request action: {}", action);
             return;
@@ -168,7 +169,6 @@ public class GitHubWebhookService {
             return;
         }
 
-        // Find the user associated with this installation
         User user = findUserForInstallation(installationId);
         if (user == null) {
             log.warn("No user found for installation {}", installationId);
@@ -183,8 +183,12 @@ public class GitHubWebhookService {
                 description != null ? description : ""
         );
 
-        var threadResponse = changeThreadService.createThread(user, request);
-        log.info("Auto-created thread {} for PR #{} on {}", threadResponse.getId(), prNumber, repoFullName);
+        try {
+            var threadResponse = changeThreadService.createThread(user, request);
+            log.info("Auto-created thread {} for PR #{} on {}", threadResponse.getId(), prNumber, repoFullName);
+        } catch (Exception e) {
+            throw new WebhookProcessingException("Failed to create thread for PR #" + prNumber, e);
+        }
     }
 
     /**
@@ -202,7 +206,6 @@ public class GitHubWebhookService {
         }
 
         log.info("Push event on {} ref={} — {} commits", repoFullName, ref, commitCount);
-        // Future: auto-trigger analysis for threads watching this branch
     }
 
     /**
@@ -262,12 +265,16 @@ public class GitHubWebhookService {
         return fullName;
     }
 
+    /**
+     * Serialize JSON payload to string.
+     *
+     * @throws WebhookPayloadInvalidException if serialization fails
+     */
     private String serializePayload(JsonNode payload) {
         try {
             return objectMapper.writeValueAsString(payload);
-        } catch (Exception e) {
-            log.warn("Failed to serialize webhook payload to JSON, using toString fallback", e);
-            return payload.toString();
+        } catch (JsonProcessingException e) {
+            throw new WebhookPayloadInvalidException("Failed to serialize webhook payload", e);
         }
     }
 
