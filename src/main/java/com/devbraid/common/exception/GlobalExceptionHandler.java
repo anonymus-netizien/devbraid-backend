@@ -5,6 +5,7 @@ import com.devbraid.changethread.exception.NoteNotFoundException;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.common.ApiResponse;
 import com.devbraid.github.exception.*;
+import com.devbraid.githubapp.exception.*;
 import com.devbraid.user.exception.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import java.io.IOException;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -167,6 +170,58 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleAccessDenied(AccessDeniedException ex) {
         log.warn("GlobalExceptionHandler :: Access denied: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    // ── IO exceptions (e.g., request body read failures) ──
+
+    @ExceptionHandler(IOException.class)
+    public ResponseEntity<ApiResponse<?>> handleIOException(IOException ex) {
+        log.warn("GlobalExceptionHandler :: IO error reading request: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ApiResponse.error("Failed to read request body: " + ex.getMessage())
+        );
+    }
+
+    // ── Webhook exceptions ──
+
+    @ExceptionHandler(WebhookSignatureInvalidException.class)
+    public ResponseEntity<ApiResponse<?>> handleWebhookSignatureInvalid(WebhookSignatureInvalidException ex) {
+        log.warn("GlobalExceptionHandler :: Webhook signature invalid: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(WebhookPayloadTooLargeException.class)
+    public ResponseEntity<ApiResponse<?>> handleWebhookPayloadTooLarge(WebhookPayloadTooLargeException ex) {
+        log.warn("GlobalExceptionHandler :: Webhook payload too large: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(WebhookPayloadInvalidException.class)
+    public ResponseEntity<ApiResponse<?>> handleWebhookPayloadInvalid(WebhookPayloadInvalidException ex) {
+        log.warn("GlobalExceptionHandler :: Webhook payload invalid: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(WebhookNotFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleWebhookNotFound(WebhookNotFoundException ex) {
+        log.warn("GlobalExceptionHandler :: Webhook not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(WebhookProcessingException.class)
+    public ResponseEntity<ApiResponse<?>> handleWebhookProcessing(WebhookProcessingException ex) {
+        log.error("GlobalExceptionHandler :: Webhook processing failed: {}", ex.getMessage(), ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ApiResponse.error(ex.getMessage())
         );
     }

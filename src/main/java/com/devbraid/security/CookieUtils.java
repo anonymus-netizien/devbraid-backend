@@ -6,10 +6,11 @@ import jakarta.servlet.http.HttpServletResponse;
 
 public final class CookieUtils {
 
-    private CookieUtils() {}
-
     public static final String REFRESH_TOKEN_COOKIE = "refreshToken";
     public static final String REFRESH_TOKEN_PATH = "/api/v1/auth/refresh";
+
+    private CookieUtils() {
+    }
 
     public static void addRefreshTokenCookie(HttpServletResponse response, String token, long maxAgeSeconds) {
         String cookieValue = String.format(
