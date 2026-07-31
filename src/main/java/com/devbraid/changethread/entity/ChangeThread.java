@@ -1,6 +1,8 @@
 package com.devbraid.changethread.entity;
 
 import com.devbraid.analysis.RiskLevel;
+import com.devbraid.github.dto.response.ChangedFileDto;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import com.devbraid.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -10,6 +12,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.generator.EventType;
 
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -58,11 +62,11 @@ public class ChangeThread {
 
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String commits;
+    private List<CommitSummaryDto> commits;
 
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(name = "changed_files", columnDefinition = "jsonb")
-    private String changedFiles;
+    private List<ChangedFileDto> changedFiles;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "risk_level")
@@ -70,7 +74,7 @@ public class ChangeThread {
 
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(name = "risk_report", columnDefinition = "jsonb")
-    private String riskReport;
+    private Map<String, Object> riskReport;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -89,11 +93,11 @@ public class ChangeThread {
         this.commitSha = commitSha;
     }
 
-    public void setCommits(String commits) {
+    public void setCommits(List<CommitSummaryDto> commits) {
         this.commits = commits;
     }
 
-    public void setChangedFiles(String changedFiles) {
+    public void setChangedFiles(List<ChangedFileDto> changedFiles) {
         this.changedFiles = changedFiles;
     }
 
@@ -101,7 +105,7 @@ public class ChangeThread {
         this.riskLevel = riskLevel;
     }
 
-    public void setRiskReport(String riskReport) {
+    public void setRiskReport(Map<String, Object> riskReport) {
         this.riskReport = riskReport;
     }
 

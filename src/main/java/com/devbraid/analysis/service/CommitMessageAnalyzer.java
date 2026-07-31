@@ -1,6 +1,6 @@
 package com.devbraid.analysis.service;
 
-import com.devbraid.analysis.util.JsonParseUtils;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -44,24 +44,21 @@ public class CommitMessageAnalyzer {
             Pattern.compile("(?i)\\bincompatible\\b"),
             Pattern.compile("(?i)\\bmigrate?d?\\b.*\\bfrom\\b.*\\bto\\b")
     );
-    private final JsonParseUtils jsonParseUtils;
-
     /**
-     * Analyze a serialized JSON array of commits and extract structured intent.
+     * Analyze typed commits and extract structured intent — no JSON parsing.
      */
-    public CommitAnalysisResult analyzeCommits(String commitsJson) {
-        if (commitsJson == null || commitsJson.isBlank()) {
+    public CommitAnalysisResult analyzeCommits(List<CommitSummaryDto> commits) {
+        if (commits == null || commits.isEmpty()) {
             return new CommitAnalysisResult(List.of(), Map.of(), false, List.of());
         }
 
-        List<Map<String, Object>> commits = jsonParseUtils.parseArray(commitsJson);
         List<CommitInsight> insights = new ArrayList<>();
         Map<String, Integer> intentCounts = new HashMap<>();
         List<String> breakingChanges = new ArrayList<>();
         boolean hasBreakingChange = false;
 
-        for (Map<String, Object> commit : commits) {
-            String message = jsonParseUtils.getString(commit, "message");
+        for (CommitSummaryDto commit : commits) {
+            String message = commit.getMessage();
             if (message == null) continue;
 
             CommitInsight insight = analyzeSingleCommit(message);

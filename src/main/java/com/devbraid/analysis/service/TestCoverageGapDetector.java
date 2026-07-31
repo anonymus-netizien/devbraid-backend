@@ -1,13 +1,12 @@
 package com.devbraid.analysis.service;
 
-import com.devbraid.analysis.util.JsonParseUtils;
+import com.devbraid.github.dto.response.ChangedFileDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -44,28 +43,24 @@ public class TestCoverageGapDetector {
             "(application.*\\.yml|application.*\\.properties|Dockerfile|docker-compose|pom\\.xml|package\\.json|\\.env)",
             Pattern.CASE_INSENSITIVE
     );
-    private final JsonParseUtils jsonParseUtils;
-
     /**
-     * Analyze changed files for test coverage gaps.
+     * Analyze typed changed files for test coverage gaps — no JSON parsing.
      */
-    public TestGapResult analyzeTestCoverage(String changedFilesJson) {
-        if (changedFilesJson == null || changedFilesJson.isBlank()) {
+    public TestGapResult analyzeTestCoverage(List<ChangedFileDto> changedFiles) {
+        if (changedFiles == null || changedFiles.isEmpty()) {
             return new TestGapResult(List.of(), 0, 0, List.of());
         }
-
-        List<Map<String, Object>> files = jsonParseUtils.parseArray(changedFilesJson);
 
         List<String> productionFiles = new ArrayList<>();
         List<String> testFiles = new ArrayList<>();
         List<String> highRiskUntested = new ArrayList<>();
 
-        for (Map<String, Object> file : files) {
-            String filename = jsonParseUtils.getString(file, "filename");
+        for (ChangedFileDto file : changedFiles) {
+            String filename = file.getFilename();
             if (filename == null) continue;
 
-            int additions = jsonParseUtils.getInt(file, "additions");
-            int deletions = jsonParseUtils.getInt(file, "deletions");
+            int additions = file.getAdditions();
+            int deletions = file.getDeletions();
             int changes = additions + deletions;
 
             if (isTestFile(filename)) {
@@ -80,12 +75,13 @@ public class TestCoverageGapDetector {
             }
         }
 
-        int totalProdLinesChanged = files.stream()
+        @SuppressWarnings("unused")
+        int totalProdLinesChanged = changedFiles.stream()
                 .filter(f -> {
-                    String name = jsonParseUtils.getString(f, "filename");
+                    String name = f.getFilename();
                     return name != null && isProductionFile(name) && !isTestFile(name);
                 })
-                .mapToInt(f -> jsonParseUtils.getInt(f, "additions") + jsonParseUtils.getInt(f, "deletions"))
+                .mapToInt(f -> f.getAdditions() + f.getDeletions())
                 .sum();
 
         List<String> recommendations = buildRecommendations(productionFiles, testFiles, highRiskUntested);

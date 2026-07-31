@@ -1,6 +1,6 @@
 package com.devbraid.analysis.service;
 
-import com.devbraid.analysis.util.JsonParseUtils;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +14,11 @@ class CommitMessageAnalyzerTest {
 
     @BeforeEach
     void setUp() {
-        analyzer = new CommitMessageAnalyzer(new JsonParseUtils(new com.fasterxml.jackson.databind.ObjectMapper()));
+        analyzer = new CommitMessageAnalyzer();
+    }
+
+    private static CommitSummaryDto commit(String message) {
+        return new CommitSummaryDto("abc123", message, null);
     }
 
     @Test
@@ -60,23 +64,24 @@ class CommitMessageAnalyzerTest {
     }
 
     @Test
-    void analyzeCommits_emptyJson_returnsEmptyResult() {
+    void analyzeCommits_emptyInput_returnsEmptyResult() {
         var result = analyzer.analyzeCommits(null);
         assertTrue(result.insights().isEmpty());
         assertFalse(result.hasBreakingChange());
+
+        var emptyResult = analyzer.analyzeCommits(List.of());
+        assertTrue(emptyResult.insights().isEmpty());
     }
 
     @Test
     void analyzeCommits_multipleCommits_countsIntents() {
-        String json = """
-                [
-                    {"message": "feat(auth): add OAuth"},
-                    {"message": "fix(security): patch XSS"},
-                    {"message": "test(auth): add login tests"}
-                ]
-                """;
+        List<CommitSummaryDto> commits = List.of(
+                commit("feat(auth): add OAuth"),
+                commit("fix(security): patch XSS"),
+                commit("test(auth): add login tests")
+        );
 
-        var result = analyzer.analyzeCommits(json);
+        var result = analyzer.analyzeCommits(commits);
 
         assertEquals(3, result.insights().size());
         assertTrue(result.intentCounts().getOrDefault("security", 0) >= 2);

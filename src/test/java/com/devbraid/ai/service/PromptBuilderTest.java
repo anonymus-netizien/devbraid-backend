@@ -2,10 +2,14 @@ package com.devbraid.ai.service;
 
 import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.entity.ThreadStatus;
+import com.devbraid.github.dto.response.ChangedFileDto;
+import com.devbraid.github.dto.response.CommitSummaryDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,7 +22,7 @@ class PromptBuilderTest {
 
     @BeforeEach
     void setUp() {
-        promptBuilder = new PromptBuilder();
+        promptBuilder = new PromptBuilder(new ObjectMapper());
         testThread = ChangeThread.builder()
                 .id(UUID.randomUUID())
                 .title("Test Thread")
@@ -26,8 +30,8 @@ class PromptBuilderTest {
                 .headBranch("feature")
                 .baseBranch("main")
                 .status(ThreadStatus.DRAFT)
-                .commits("[{\"sha\":\"abc123\",\"message\":\"feat: add auth\"}]")
-                .changedFiles("[{\"filename\":\"src/auth/AuthService.java\"}]")
+                .commits(List.of(new CommitSummaryDto("abc123", "feat: add auth", null)))
+                .changedFiles(List.of(new ChangedFileDto("src/auth/AuthService.java", "modified", 10, 0)))
                 .build();
     }
 

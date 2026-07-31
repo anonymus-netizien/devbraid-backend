@@ -1,6 +1,7 @@
 package com.devbraid.analysis.service;
 
-import com.devbraid.analysis.util.JsonParseUtils;
+import com.devbraid.github.dto.response.ChangedFileDto;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -57,25 +58,21 @@ public class AutoDecisionNotes {
         );
     }
 
-    private final JsonParseUtils jsonParseUtils;
-
     /**
-     * Generate suggested decision notes from changed files and commits.
+     * Generate suggested decision notes from typed changed files and commits — no JSON parsing.
      */
-    public List<SuggestedNote> suggestNotes(String commitsJson, String changedFilesJson) {
+    public List<SuggestedNote> suggestNotes(List<CommitSummaryDto> commits, List<ChangedFileDto> changedFiles) {
         List<SuggestedNote> suggestions = new ArrayList<>();
         Set<String> seenPatterns = new HashSet<>();
 
         // Analyze file paths for patterns
-        if (changedFilesJson != null && !changedFilesJson.isBlank()) {
-            List<Map<String, Object>> files = jsonParseUtils.parseArray(changedFilesJson);
-
-            for (Map<String, Object> file : files) {
-                String filename = jsonParseUtils.getString(file, "filename");
+        if (changedFiles != null && !changedFiles.isEmpty()) {
+            for (ChangedFileDto file : changedFiles) {
+                String filename = file.getFilename();
                 if (filename == null) continue;
 
-                int additions = jsonParseUtils.getInt(file, "additions");
-                int deletions = jsonParseUtils.getInt(file, "deletions");
+                int additions = file.getAdditions();
+                int deletions = file.getDeletions();
 
                 for (Map.Entry<Pattern, String> entry : PATTERN_NOTES.entrySet()) {
                     String key = entry.getKey().pattern();
@@ -106,17 +103,16 @@ public class AutoDecisionNotes {
         }
 
         // Analyze commit messages
-        if (commitsJson != null && !commitsJson.isBlank()) {
-            List<Map<String, Object>> commits = jsonParseUtils.parseArray(commitsJson);
+        if (commits != null && !commits.isEmpty()) {
             analyzeCommitsForNotes(commits, seenPatterns, suggestions);
         }
 
         return suggestions;
     }
 
-    private void analyzeCommitsForNotes(List<Map<String, Object>> commits, Set<String> seen, List<SuggestedNote> suggestions) {
-        for (Map<String, Object> commit : commits) {
-            String message = jsonParseUtils.getString(commit, "message");
+    private void analyzeCommitsForNotes(List<CommitSummaryDto> commits, Set<String> seen, List<SuggestedNote> suggestions) {
+        for (CommitSummaryDto commit : commits) {
+            String message = commit.getMessage();
             if (message == null) continue;
 
             for (Map.Entry<Pattern, String> entry : PATTERN_NOTES.entrySet()) {
