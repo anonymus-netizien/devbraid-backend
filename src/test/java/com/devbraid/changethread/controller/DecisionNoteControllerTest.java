@@ -235,7 +235,10 @@ class DecisionNoteControllerTest {
     }
 
     @Test
-    @DisplayName("PUT /api/v1/threads/{threadId}/notes/{noteId} returns 403 when not author")
+    @DisplayName("PUT /api/v1/threads/{threadId}/notes/{noteId} returns 403 when AccessDeniedException surfaces")
+    // Defensive handler-layer test: DecisionNoteService itself no longer throws
+    // AccessDeniedException (ownership moved to findByIdAndAuthorId -> 404), but
+    // GlobalExceptionHandler.handleAccessDenied stays for future method-security.
     void updateNote_Unauthorized_Returns403() throws Exception {
         when(decisionNoteService.updateNote(any(User.class), eq(NOTE_ID), any(UpdateNoteRequest.class)))
                 .thenThrow(new org.springframework.security.access.AccessDeniedException("Not authorized to update this note"));

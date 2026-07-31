@@ -49,6 +49,10 @@ public class BriefBuilderService {
         String content;
         try {
             content = aiProvider.analyze(promptBuilder.buildBriefPrompt(thread));
+            if (!isEvidenceBacked(content)) {
+                log.warn("AI brief output missing citation/inference markers — using template fallback");
+                content = promptBuilder.buildTemplateBrief(thread);
+            }
         } catch (Exception e) {
             log.warn("AI brief generation unavailable, using template fallback: {}", e.getMessage());
             content = promptBuilder.buildTemplateBrief(thread);
@@ -94,11 +98,8 @@ public class BriefBuilderService {
      */
     @Transactional(readOnly = true)
     public BriefResponse getBriefById(User user, UUID briefId) {
-        ChangeBrief brief = briefRepository.findById(briefId)
+        ChangeBrief brief = briefRepository.findByIdAndThread_UserId(briefId, user.getId())
                 .orElseThrow(() -> new BriefNotFoundException("Brief not found"));
-        if (!brief.getThread().getUser().getId().equals(user.getId())) {
-            throw new BriefNotFoundException("Brief not found");
-        }
         return toResponse(brief);
     }
 
@@ -113,6 +114,19 @@ public class BriefBuilderService {
         return briefRepository.findByThreadId(threadId)
                 .map(this::toResponse)
                 .orElse(null);
+    }
+
+    /**
+     * Checks whether AI brief output carries the required evidence markers:
+     * a citation ([file:], [commit:], [source:]) or an [inference] marker.
+     * ponytail: case-insensitive lowercase match; upgrade to regex/parsing if
+     * the AI starts emitting markdown-link citations ([source](url)) instead.
+     */
+    private boolean isEvidenceBacked(String content) {
+        if (content == null || content.isBlank()) return false;
+        String lower = content.toLowerCase();
+        return lower.contains("[file:") || lower.contains("[commit:")
+                || lower.contains("[source:") || lower.contains("[inference]");
     }
 
     private BriefResponse toResponse(ChangeBrief brief) {

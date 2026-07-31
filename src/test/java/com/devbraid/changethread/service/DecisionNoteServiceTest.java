@@ -192,7 +192,7 @@ class DecisionNoteServiceTest {
     @Test
     @DisplayName("updateNote() updates fields when user is the author")
     void updateNote_AsAuthor_UpdatesFields() {
-        when(noteRepository.findById(testNote.getId())).thenReturn(Optional.of(testNote));
+        when(noteRepository.findByIdAndAuthorId(testNote.getId(), testUser.getId())).thenReturn(Optional.of(testNote));
         when(noteRepository.save(any(DecisionNote.class))).thenReturn(testNote);
         when(generalModelMapper.map(any(DecisionNote.class), eq(NoteResponse.class)))
                 .thenAnswer(invocation -> {
@@ -215,7 +215,7 @@ class DecisionNoteServiceTest {
     @Test
     @DisplayName("updateNote() throws when note not found")
     void updateNote_NotFound_ThrowsException() {
-        when(noteRepository.findById(any())).thenReturn(Optional.empty());
+        when(noteRepository.findByIdAndAuthorId(any(), any())).thenReturn(Optional.empty());
 
         UpdateNoteRequest request = new UpdateNoteRequest("Updated", "Updated", null, null);
 
@@ -226,21 +226,21 @@ class DecisionNoteServiceTest {
 
     @Test
     @DisplayName("updateNote() throws when user is not the author")
-    void updateNote_NotAuthor_ThrowsAccessDenied() {
+    void updateNote_NotAuthor_ThrowsNotFoundException() {
         User otherUser = User.builder().id(UUID.randomUUID()).build();
-        when(noteRepository.findById(testNote.getId())).thenReturn(Optional.of(testNote));
+        when(noteRepository.findByIdAndAuthorId(testNote.getId(), otherUser.getId())).thenReturn(Optional.empty());
 
         UpdateNoteRequest request = new UpdateNoteRequest("Updated", "Updated", null, null);
 
         assertThatThrownBy(() -> decisionNoteService.updateNote(otherUser, testNote.getId(), request))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-                .hasMessageContaining("Not authorized");
+                .isInstanceOf(NoteNotFoundException.class)
+                .hasMessageContaining("Decision note not found");
     }
 
     @Test
     @DisplayName("deleteNote() deletes when user is the author")
     void deleteNote_AsAuthor_DeletesNote() {
-        when(noteRepository.findById(testNote.getId())).thenReturn(Optional.of(testNote));
+        when(noteRepository.findByIdAndAuthorId(testNote.getId(), testUser.getId())).thenReturn(Optional.of(testNote));
 
         decisionNoteService.deleteNote(testUser, testNote.getId());
 
@@ -249,13 +249,13 @@ class DecisionNoteServiceTest {
 
     @Test
     @DisplayName("deleteNote() throws when user is not the author")
-    void deleteNote_NotAuthor_ThrowsAccessDenied() {
+    void deleteNote_NotAuthor_ThrowsNotFoundException() {
         User otherUser = User.builder().id(UUID.randomUUID()).build();
-        when(noteRepository.findById(testNote.getId())).thenReturn(Optional.of(testNote));
+        when(noteRepository.findByIdAndAuthorId(testNote.getId(), otherUser.getId())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> decisionNoteService.deleteNote(otherUser, testNote.getId()))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-                .hasMessageContaining("Not authorized");
+                .isInstanceOf(NoteNotFoundException.class)
+                .hasMessageContaining("Decision note not found");
 
         verify(noteRepository, never()).delete(any());
     }
@@ -263,7 +263,7 @@ class DecisionNoteServiceTest {
     @Test
     @DisplayName("deleteNote() throws when note not found")
     void deleteNote_NotFound_ThrowsException() {
-        when(noteRepository.findById(any())).thenReturn(Optional.empty());
+        when(noteRepository.findByIdAndAuthorId(any(), any())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> decisionNoteService.deleteNote(testUser, UUID.randomUUID()))
                 .isInstanceOf(NoteNotFoundException.class)
