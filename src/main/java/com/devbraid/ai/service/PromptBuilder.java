@@ -36,7 +36,11 @@ public class PromptBuilder {
         prompt.append("1. **Summary** — What changed and why\n");
         prompt.append("2. **Key Changes** — List of important modifications\n");
         prompt.append("3. **Risk Assessment** — Potential risks and mitigations\n");
-        prompt.append("4. **Testing Recommendations** — What to test\n");
+        prompt.append("4. **Testing Recommendations** — What to test\n\n");
+        prompt.append("CITATION RULE (mandatory): Every factual claim MUST be immediately followed by a citation ");
+        prompt.append("marker in one of these forms: [file: <path>], [commit: <sha>], or [source: <reference>]. ");
+        prompt.append("If a statement is your own reasoning or a guess, mark it [inference] instead. ");
+        prompt.append("Output is rejected if it contains claims with neither a citation marker nor an [inference] marker.\n");
 
         return prompt.toString();
     }
