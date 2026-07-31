@@ -32,27 +32,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("ComplianceController @PreAuthorize Enforcement")
 class ComplianceControllerSecurityTest {
 
-    @Configuration
-    @EnableMethodSecurity
-    static class MethodSecurityTestConfig {
-
-        @Bean
-        ComplianceExportService complianceExportService() {
-            return mock(ComplianceExportService.class);
-        }
-
-        @Bean
-        ComplianceController complianceController(ComplianceExportService service) {
-            return new ComplianceController(service);
-        }
-    }
-
     @Autowired
     private ComplianceController complianceController;
-
     @Autowired
     private ComplianceExportService complianceExportService;
-
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -78,5 +61,20 @@ class ComplianceControllerSecurityTest {
     void developer_export_forbidden() throws Exception {
         mockMvc.perform(get("/api/v1/admin/compliance/export"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Configuration
+    @EnableMethodSecurity
+    static class MethodSecurityTestConfig {
+
+        @Bean
+        ComplianceExportService complianceExportService() {
+            return mock(ComplianceExportService.class);
+        }
+
+        @Bean
+        ComplianceController complianceController(ComplianceExportService service) {
+            return new ComplianceController(service);
+        }
     }
 }

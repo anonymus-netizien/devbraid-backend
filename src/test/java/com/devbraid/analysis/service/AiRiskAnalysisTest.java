@@ -23,18 +23,15 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class AiRiskAnalysisTest {
 
-    @InjectMocks
-    private AiRiskAnalysis aiRiskAnalysis;
-
-    @Mock
-    private AIProvider aiProvider;
-
-    @Mock
-    private PromptBuilder promptBuilder;
-
     private final List<CommitSummaryDto> commits = List.of();
     private final List<ChangedFileDto> changedFiles = List.of();
     private final List<RiskFlagDto> flags = List.of();
+    @InjectMocks
+    private AiRiskAnalysis aiRiskAnalysis;
+    @Mock
+    private AIProvider aiProvider;
+    @Mock
+    private PromptBuilder promptBuilder;
 
     @Test
     @DisplayName("analyze() returns AI output when the provider succeeds")
