@@ -1,8 +1,7 @@
 package com.devbraid.analysis;
 
 import com.devbraid.analysis.service.EvidenceExtractor;
-import com.devbraid.analysis.util.JsonParseUtils;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.devbraid.github.dto.response.ChangedFileDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,9 +20,13 @@ class EvidenceExtractorTest {
 
     private EvidenceExtractor evidenceExtractor;
 
+    private static ChangedFileDto file(String name, int add, int del) {
+        return new ChangedFileDto(name, "modified", add, del);
+    }
+
     @BeforeEach
     void setUp() {
-        evidenceExtractor = new EvidenceExtractor(new JsonParseUtils(new ObjectMapper()));
+        evidenceExtractor = new EvidenceExtractor();
     }
 
     @Test
@@ -41,10 +44,7 @@ class EvidenceExtractorTest {
     @Test
     @DisplayName("extract() computes file counts and line changes correctly")
     void extract_WithFiles_ComputesCorrectStats() {
-        String files = """
-                [{"filename":"src/main.java","additions":10,"deletions":2},
-                 {"filename":"src/test.java","additions":5,"deletions":0}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main.java", 10, 2), file("src/test.java", 5, 0));
         Map<String, Object> evidence = evidenceExtractor.extract(null, files);
 
         assertThat(evidence.get("fileCount")).isEqualTo(2);
@@ -56,10 +56,10 @@ class EvidenceExtractorTest {
     @Test
     @DisplayName("extract() identifies security files correctly")
     void extract_WithSecurityFiles_IdentifiesThem() {
-        String files = """
-                [{"filename":"src/main/java/com/app/security/AuthService.java","additions":10,"deletions":2},
-                 {"filename":"src/main/java/com/app/controller/HomeController.java","additions":3,"deletions":1}]
-                """;
+        List<ChangedFileDto> files = List.of(
+                file("src/main/java/com/app/security/AuthService.java", 10, 2),
+                file("src/main/java/com/app/controller/HomeController.java", 3, 1)
+        );
         Map<String, Object> evidence = evidenceExtractor.extract(null, files);
 
         @SuppressWarnings("unchecked")
@@ -71,10 +71,10 @@ class EvidenceExtractorTest {
     @Test
     @DisplayName("extract() identifies test files correctly")
     void extract_WithTestFiles_IdentifiesThem() {
-        String files = """
-                [{"filename":"src/test/java/com/app/MainTest.java","additions":5,"deletions":0},
-                 {"filename":"src/main/java/com/app/Main.java","additions":10,"deletions":2}]
-                """;
+        List<ChangedFileDto> files = List.of(
+                file("src/test/java/com/app/MainTest.java", 5, 0),
+                file("src/main/java/com/app/Main.java", 10, 2)
+        );
         Map<String, Object> evidence = evidenceExtractor.extract(null, files);
 
         @SuppressWarnings("unchecked")
@@ -86,10 +86,10 @@ class EvidenceExtractorTest {
     @Test
     @DisplayName("extract() identifies config files correctly")
     void extract_WithConfigFiles_IdentifiesThem() {
-        String files = """
-                [{"filename":"src/main/resources/application.yml","additions":2,"deletions":0},
-                 {"filename":"src/main/java/com/app/Main.java","additions":10,"deletions":2}]
-                """;
+        List<ChangedFileDto> files = List.of(
+                file("src/main/resources/application.yml", 2, 0),
+                file("src/main/java/com/app/Main.java", 10, 2)
+        );
         Map<String, Object> evidence = evidenceExtractor.extract(null, files);
 
         @SuppressWarnings("unchecked")
@@ -101,9 +101,7 @@ class EvidenceExtractorTest {
     @Test
     @DisplayName("extract() identifies migration files correctly")
     void extract_WithMigrationFiles_IdentifiesThem() {
-        String files = """
-                [{"filename":"src/main/resources/db/migration/V2__add_users.sql","additions":15,"deletions":0}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main/resources/db/migration/V2__add_users.sql", 15, 0));
         Map<String, Object> evidence = evidenceExtractor.extract(null, files);
 
         @SuppressWarnings("unchecked")
@@ -115,9 +113,7 @@ class EvidenceExtractorTest {
     @Test
     @DisplayName("extract() identifies dependency files correctly")
     void extract_WithDependencyFiles_IdentifiesThem() {
-        String files = """
-                [{"filename":"pom.xml","additions":5,"deletions":3}]
-                """;
+        List<ChangedFileDto> files = List.of(file("pom.xml", 5, 3));
         Map<String, Object> evidence = evidenceExtractor.extract(null, files);
 
         @SuppressWarnings("unchecked")
@@ -129,7 +125,7 @@ class EvidenceExtractorTest {
     @Test
     @DisplayName("extract() handles empty files array gracefully")
     void extract_EmptyFiles_ReturnsEmptyEvidence() {
-        Map<String, Object> evidence = evidenceExtractor.extract("[]", "[]");
+        Map<String, Object> evidence = evidenceExtractor.extract(List.of(), List.of());
 
         assertThat(evidence.get("fileCount")).isEqualTo(0);
         assertThat(evidence.get("totalAdditions")).isEqualTo(0);
@@ -139,10 +135,7 @@ class EvidenceExtractorTest {
     @Test
     @DisplayName("extract() returns filenames list")
     void extract_ReturnsFilenamesList() {
-        String files = """
-                [{"filename":"src/main.java","additions":1,"deletions":0},
-                 {"filename":"src/test.java","additions":1,"deletions":0}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main.java", 1, 0), file("src/test.java", 1, 0));
         Map<String, Object> evidence = evidenceExtractor.extract(null, files);
 
         @SuppressWarnings("unchecked")

@@ -1,8 +1,10 @@
 package com.devbraid.analysis.service;
 
-import com.devbraid.analysis.util.JsonParseUtils;
+import com.devbraid.github.dto.response.ChangedFileDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -10,9 +12,13 @@ class TestCoverageGapDetectorTest {
 
     private TestCoverageGapDetector detector;
 
+    private static ChangedFileDto file(String name, int add, int del) {
+        return new ChangedFileDto(name, "modified", add, del);
+    }
+
     @BeforeEach
     void setUp() {
-        detector = new TestCoverageGapDetector(new JsonParseUtils(new com.fasterxml.jackson.databind.ObjectMapper()));
+        detector = new TestCoverageGapDetector();
     }
 
     @Test
@@ -25,14 +31,12 @@ class TestCoverageGapDetectorTest {
 
     @Test
     void analyzeTestCoverage_prodFilesWithoutTests_flags() {
-        String json = """
-                [
-                    {"filename": "src/main/java/com/devbraid/UserService.java", "additions": 50, "deletions": 10},
-                    {"filename": "src/main/java/com/devbraid/AuthController.java", "additions": 30, "deletions": 5}
-                ]
-                """;
+        List<ChangedFileDto> files = List.of(
+                file("src/main/java/com/devbraid/UserService.java", 50, 10),
+                file("src/main/java/com/devbraid/AuthController.java", 30, 5)
+        );
 
-        var result = detector.analyzeTestCoverage(json);
+        var result = detector.analyzeTestCoverage(files);
 
         assertEquals(2, result.productionFileCount());
         assertEquals(0, result.testFileCount());
@@ -42,14 +46,12 @@ class TestCoverageGapDetectorTest {
 
     @Test
     void analyzeTestCoverage_withTests_noFlags() {
-        String json = """
-                [
-                    {"filename": "src/main/java/com/devbraid/UserService.java", "additions": 50, "deletions": 10},
-                    {"filename": "src/test/java/com/devbraid/UserServiceTest.java", "additions": 30, "deletions": 0}
-                ]
-                """;
+        List<ChangedFileDto> files = List.of(
+                file("src/main/java/com/devbraid/UserService.java", 50, 10),
+                file("src/test/java/com/devbraid/UserServiceTest.java", 30, 0)
+        );
 
-        var result = detector.analyzeTestCoverage(json);
+        var result = detector.analyzeTestCoverage(files);
 
         assertEquals(1, result.productionFileCount());
         assertEquals(1, result.testFileCount());
@@ -57,14 +59,12 @@ class TestCoverageGapDetectorTest {
 
     @Test
     void analyzeTestCoverage_securityFileUntested_highRisk() {
-        String json = """
-                [
-                    {"filename": "src/main/java/com/devbraid/security/JwtFilter.java", "additions": 80, "deletions": 20},
-                    {"filename": "src/main/java/com/devbraid/service/UserService.java", "additions": 50, "deletions": 10}
-                ]
-                """;
+        List<ChangedFileDto> files = List.of(
+                file("src/main/java/com/devbraid/security/JwtFilter.java", 80, 20),
+                file("src/main/java/com/devbraid/service/UserService.java", 50, 10)
+        );
 
-        var result = detector.analyzeTestCoverage(json);
+        var result = detector.analyzeTestCoverage(files);
 
         assertFalse(result.highRiskUntestedFiles().isEmpty());
         assertTrue(result.highRiskUntestedFiles().stream().anyMatch(f -> f.contains("JwtFilter")));
@@ -72,14 +72,12 @@ class TestCoverageGapDetectorTest {
 
     @Test
     void analyzeTestCoverage_infraFilesIgnored() {
-        String json = """
-                [
-                    {"filename": "Dockerfile", "additions": 5, "deletions": 0},
-                    {"filename": "application.yml", "additions": 10, "deletions": 2}
-                ]
-                """;
+        List<ChangedFileDto> files = List.of(
+                file("Dockerfile", 5, 0),
+                file("application.yml", 10, 2)
+        );
 
-        var result = detector.analyzeTestCoverage(json);
+        var result = detector.analyzeTestCoverage(files);
 
         assertEquals(0, result.productionFileCount());
         assertEquals(0, result.testFileCount());
@@ -87,14 +85,12 @@ class TestCoverageGapDetectorTest {
 
     @Test
     void analyzeTestCoverage_tsxFiles() {
-        String json = """
-                [
-                    {"filename": "src/components/Dashboard.tsx", "additions": 100, "deletions": 20},
-                    {"filename": "src/components/__tests__/Dashboard.test.tsx", "additions": 40, "deletions": 0}
-                ]
-                """;
+        List<ChangedFileDto> files = List.of(
+                file("src/components/Dashboard.tsx", 100, 20),
+                file("src/components/__tests__/Dashboard.test.tsx", 40, 0)
+        );
 
-        var result = detector.analyzeTestCoverage(json);
+        var result = detector.analyzeTestCoverage(files);
 
         assertEquals(1, result.productionFileCount());
         assertEquals(1, result.testFileCount());

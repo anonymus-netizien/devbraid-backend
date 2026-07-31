@@ -73,13 +73,8 @@ public class DecisionNoteService {
 
     @Transactional
     public NoteResponse updateNote(User user, UUID noteId, UpdateNoteRequest req) {
-        DecisionNote note = noteRepository.findById(noteId)
+        DecisionNote note = noteRepository.findByIdAndAuthorId(noteId, user.getId())
                 .orElseThrow(() -> new NoteNotFoundException("Decision note not found"));
-
-        // Only the author can update
-        if (!note.getAuthor().getId().equals(user.getId())) {
-            throw new org.springframework.security.access.AccessDeniedException("Not authorized to update this note");
-        }
 
         if (req.getDecision() != null) {
             note.setDecision(req.getDecision());
@@ -100,13 +95,8 @@ public class DecisionNoteService {
 
     @Transactional
     public void deleteNote(User user, UUID noteId) {
-        DecisionNote note = noteRepository.findById(noteId)
+        DecisionNote note = noteRepository.findByIdAndAuthorId(noteId, user.getId())
                 .orElseThrow(() -> new NoteNotFoundException("Decision note not found"));
-
-        // Only the author can delete
-        if (!note.getAuthor().getId().equals(user.getId())) {
-            throw new org.springframework.security.access.AccessDeniedException("Not authorized to delete this note");
-        }
 
         noteRepository.delete(note);
         log.info("Deleted note {} by user {}", noteId, user.getId());

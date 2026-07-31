@@ -2,25 +2,23 @@ package com.devbraid.analysis.service;
 
 import com.devbraid.analysis.RiskLevel;
 import com.devbraid.analysis.dto.RiskFlagDto;
-import com.devbraid.analysis.util.JsonParseUtils;
-import lombok.RequiredArgsConstructor;
+import com.devbraid.github.dto.response.ChangedFileDto;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
  * Deterministic risk evaluation rules for code changes.
- * Uses shared JsonParseUtils for JSON parsing.
+ * Consumes typed {@link CommitSummaryDto}/{@link ChangedFileDto} lists directly — no JSON parsing.
  * Enhanced with deeper semantic analysis for Sprint 5.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RiskFlagRules {
 
     private static final int LARGE_DIFF_THRESHOLD = 500;
@@ -32,19 +30,19 @@ public class RiskFlagRules {
             "RateLimiter", "Filter", "Interceptor", "Advice"
     );
     // Patterns suggesting tight coupling
+    @SuppressWarnings("unused")
     private static final Pattern GOD_CLASS_PATTERN = Pattern.compile(
             "(Service|Manager|Handler|Helper)\\.java$"
     );
-    private final JsonParseUtils jsonParseUtils;
 
-    public List<RiskFlagDto> evaluate(String commitsJson, String changedFilesJson) {
+    public List<RiskFlagDto> evaluate(List<CommitSummaryDto> commits, List<ChangedFileDto> changedFiles) {
         List<RiskFlagDto> flags = new ArrayList<>();
 
-        List<Map<String, Object>> files = jsonParseUtils.parseArray(changedFilesJson);
-        List<Map<String, Object>> commits = jsonParseUtils.parseArray(commitsJson);
+        List<ChangedFileDto> files = changedFiles != null ? changedFiles : List.of();
+        List<CommitSummaryDto> commitList = commits != null ? commits : List.of();
 
         int totalLinesChanged = files.stream()
-                .mapToInt(f -> jsonParseUtils.getInt(f, "additions") + jsonParseUtils.getInt(f, "deletions"))
+                .mapToInt(f -> f.getAdditions() + f.getDeletions())
                 .sum();
 
         if (totalLinesChanged > LARGE_DIFF_THRESHOLD) {
@@ -72,7 +70,7 @@ public class RiskFlagRules {
         detectCrossCuttingConcerns(files, flags);
 
         // Commit message risk signals
-        detectCommitRisks(commits, flags);
+        detectCommitRisks(commitList, flags);
 
         // Dependency version bumps
         detectDependencyRisks(files, flags);
@@ -95,16 +93,16 @@ public class RiskFlagRules {
 
     // ── Enhanced Detection Methods (Sprint 5) ───────────────────────
 
-    private void detectSingleFileRisk(List<Map<String, Object>> files, List<RiskFlagDto> flags) {
+    private void detectSingleFileRisk(List<ChangedFileDto> files, List<RiskFlagDto> flags) {
         files.stream()
                 .filter(f -> {
-                    int changes = jsonParseUtils.getInt(f, "additions") + jsonParseUtils.getInt(f, "deletions");
+                    int changes = f.getAdditions() + f.getDeletions();
                     return changes > SINGLE_FILE_LARGE_THRESHOLD;
                 })
                 .forEach(f -> {
-                    String name = jsonParseUtils.getString(f, "filename");
-                    int additions = jsonParseUtils.getInt(f, "additions");
-                    int deletions = jsonParseUtils.getInt(f, "deletions");
+                    String name = f.getFilename();
+                    int additions = f.getAdditions();
+                    int deletions = f.getDeletions();
                     flags.add(RiskFlagDto.builder()
                             .rule("singleFileLargeDiff").severity(RiskLevel.MEDIUM)
                             .message("Single file has large changes: " + name)
@@ -113,9 +111,9 @@ public class RiskFlagRules {
                 });
     }
 
-    private void detectCrossCuttingConcerns(List<Map<String, Object>> files, List<RiskFlagDto> flags) {
+    private void detectCrossCuttingConcerns(List<ChangedFileDto> files, List<RiskFlagDto> flags) {
         List<String> crossCutting = files.stream()
-                .map(f -> jsonParseUtils.getString(f, "filename"))
+                .map(ChangedFileDto::getFilename)
                 .filter(name -> name != null && CROSS_CUTTING_PATTERNS.stream()
                         .anyMatch(p -> name.contains(p)))
                 .toList();
@@ -129,10 +127,10 @@ public class RiskFlagRules {
         }
     }
 
-    private void detectCommitRisks(List<Map<String, Object>> commits, List<RiskFlagDto> flags) {
+    private void detectCommitRisks(List<CommitSummaryDto> commits, List<RiskFlagDto> flags) {
         long revertCommits = commits.stream()
                 .filter(c -> {
-                    String msg = jsonParseUtils.getString(c, "message");
+                    String msg = c.getMessage();
                     return msg != null && msg.toLowerCase().startsWith("revert");
                 })
                 .count();
@@ -148,7 +146,7 @@ public class RiskFlagRules {
         // Detect WIP/draft commits
         long wipCommits = commits.stream()
                 .filter(c -> {
-                    String msg = jsonParseUtils.getString(c, "message");
+                    String msg = c.getMessage();
                     return msg != null && (msg.toLowerCase().startsWith("wip") || msg.toLowerCase().contains("work in progress"));
                 })
                 .count();
@@ -162,13 +160,13 @@ public class RiskFlagRules {
         }
     }
 
-    private void detectDependencyRisks(List<Map<String, Object>> files, List<RiskFlagDto> flags) {
+    private void detectDependencyRisks(List<ChangedFileDto> files, List<RiskFlagDto> flags) {
         boolean pomChanged = files.stream()
-                .anyMatch(f -> "pom.xml".equals(jsonParseUtils.getString(f, "filename")));
+                .anyMatch(f -> "pom.xml".equals(f.getFilename()));
 
         boolean packageJsonChanged = files.stream()
                 .anyMatch(f -> {
-                    String name = jsonParseUtils.getString(f, "filename");
+                    String name = f.getFilename();
                     return name != null && (name.equals("package.json") || name.equals("package-lock.json") || name.equals("yarn.lock"));
                 });
 
@@ -191,13 +189,10 @@ public class RiskFlagRules {
 
     // ── Original Detection Methods ──────────────────────────────────
 
-    private void detectSecurityPaths(List<Map<String, Object>> files, List<RiskFlagDto> flags) {
+    private void detectSecurityPaths(List<ChangedFileDto> files, List<RiskFlagDto> flags) {
         List<String> securityFiles = files.stream()
-                .filter(f -> {
-                    String name = jsonParseUtils.getString(f, "filename");
-                    return name != null && (name.contains("/security/") || name.contains("/auth/") || name.contains("/crypto/"));
-                })
-                .map(f -> jsonParseUtils.getString(f, "filename"))
+                .map(ChangedFileDto::getFilename)
+                .filter(name -> name != null && (name.contains("/security/") || name.contains("/auth/") || name.contains("/crypto/")))
                 .toList();
         if (!securityFiles.isEmpty()) {
             flags.add(RiskFlagDto.builder()
@@ -207,14 +202,12 @@ public class RiskFlagRules {
         }
     }
 
-    private void detectTestGaps(List<Map<String, Object>> files, List<RiskFlagDto> flags) {
+    private void detectTestGaps(List<ChangedFileDto> files, List<RiskFlagDto> flags) {
         boolean hasTestFiles = files.stream()
-                .anyMatch(f -> {
-                    String name = jsonParseUtils.getString(f, "filename");
-                    return name != null && (name.endsWith("Test.java") || name.endsWith("Test.ts")
-                            || name.endsWith(".test.java") || name.endsWith(".test.ts")
-                            || name.contains("/test/") || name.contains("/__tests__/"));
-                });
+                .map(ChangedFileDto::getFilename)
+                .anyMatch(name -> name != null && (name.endsWith("Test.java") || name.endsWith("Test.ts")
+                        || name.endsWith(".test.java") || name.endsWith(".test.ts")
+                        || name.contains("/test/") || name.contains("/__tests__/")));
         if (!hasTestFiles && !files.isEmpty()) {
             flags.add(RiskFlagDto.builder()
                     .rule("noTests").severity(RiskLevel.LOW)
@@ -224,13 +217,10 @@ public class RiskFlagRules {
         }
     }
 
-    private void detectConfigChanges(List<Map<String, Object>> files, List<RiskFlagDto> flags) {
+    private void detectConfigChanges(List<ChangedFileDto> files, List<RiskFlagDto> flags) {
         List<String> configFiles = files.stream()
-                .filter(f -> {
-                    String name = jsonParseUtils.getString(f, "filename");
-                    return name != null && (name.contains("/config/") || (name.contains("application") && name.endsWith(".yml")));
-                })
-                .map(f -> jsonParseUtils.getString(f, "filename"))
+                .map(ChangedFileDto::getFilename)
+                .filter(name -> name != null && (name.contains("/config/") || (name.contains("application") && name.endsWith(".yml"))))
                 .toList();
         if (!configFiles.isEmpty()) {
             flags.add(RiskFlagDto.builder()
@@ -240,13 +230,10 @@ public class RiskFlagRules {
         }
     }
 
-    private void detectMigrationFiles(List<Map<String, Object>> files, List<RiskFlagDto> flags) {
+    private void detectMigrationFiles(List<ChangedFileDto> files, List<RiskFlagDto> flags) {
         List<String> migrationFiles = files.stream()
-                .filter(f -> {
-                    String name = jsonParseUtils.getString(f, "filename");
-                    return name != null && name.matches(".*V\\d+__.*\\.sql");
-                })
-                .map(f -> jsonParseUtils.getString(f, "filename"))
+                .map(ChangedFileDto::getFilename)
+                .filter(name -> name != null && name.matches(".*V\\d+__.*\\.sql"))
                 .toList();
         if (!migrationFiles.isEmpty()) {
             flags.add(RiskFlagDto.builder()

@@ -10,7 +10,6 @@ import com.devbraid.github.dto.response.GitRepositoryDto;
 import com.devbraid.github.entity.GitHubConnection;
 import com.devbraid.github.exception.GitHubAlreadyConnectedException;
 import com.devbraid.github.exception.GitHubNotConnectedException;
-import com.devbraid.github.exception.GitHubTokenExpiredException;
 import com.devbraid.github.exception.GitHubTokenInvalidException;
 import com.devbraid.github.repository.GitHubConnectionRepository;
 import com.devbraid.github.util.PatEncryptor;
@@ -188,8 +187,8 @@ class GitHubConnectionServiceTest {
                 .thenThrow(new GitHubTokenInvalidException("Bad credentials"));
 
         assertThatThrownBy(() -> service.getStatus(testUser))
-                .isInstanceOf(GitHubTokenExpiredException.class)
-                .hasMessageContaining("token expired or invalid");
+                .isInstanceOf(GitHubTokenInvalidException.class)
+                .hasMessageContaining("Bad credentials");
     }
 
     @Test
@@ -232,8 +231,8 @@ class GitHubConnectionServiceTest {
                 .thenThrow(new GitHubTokenInvalidException("Bad credentials"));
 
         assertThatThrownBy(() -> service.validateOnLogin(testUser))
-                .isInstanceOf(GitHubTokenExpiredException.class)
-                .hasMessageContaining("token expired or invalid");
+                .isInstanceOf(GitHubTokenInvalidException.class)
+                .hasMessageContaining("Bad credentials");
     }
 
     @Test

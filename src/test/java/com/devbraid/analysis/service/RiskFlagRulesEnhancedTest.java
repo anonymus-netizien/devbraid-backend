@@ -2,7 +2,8 @@ package com.devbraid.analysis.service;
 
 import com.devbraid.analysis.RiskLevel;
 import com.devbraid.analysis.dto.RiskFlagDto;
-import com.devbraid.analysis.util.JsonParseUtils;
+import com.devbraid.github.dto.response.ChangedFileDto;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -15,29 +16,33 @@ class RiskFlagRulesEnhancedTest {
 
     private RiskFlagRules rules;
 
+    private static ChangedFileDto file(String name, int add, int del) {
+        return new ChangedFileDto(name, "modified", add, del);
+    }
+
+    private static CommitSummaryDto commit(String message) {
+        return new CommitSummaryDto("abc123", message, null);
+    }
+
     @BeforeEach
     void setUp() {
-        rules = new RiskFlagRules(new JsonParseUtils(new com.fasterxml.jackson.databind.ObjectMapper()));
+        rules = new RiskFlagRules();
     }
 
     @Test
     void detectSingleFileRisk_largeDiff_flagged() {
-        String files = """
-                [{"filename": "BigService.java", "additions": 200, "deletions": 150}]
-                """;
+        List<ChangedFileDto> files = List.of(file("BigService.java", 200, 150));
 
-        List<RiskFlagDto> flags = rules.evaluate("[]", files);
+        List<RiskFlagDto> flags = rules.evaluate(List.of(), files);
 
         assertTrue(flags.stream().anyMatch(f -> f.getRule().equals("singleFileLargeDiff")));
     }
 
     @Test
     void detectCrossCuttingConcerns_securityConfig_flagged() {
-        String files = """
-                [{"filename": "src/main/java/com/devbraid/SecurityConfig.java", "additions": 20, "deletions": 5}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main/java/com/devbraid/SecurityConfig.java", 20, 5));
 
-        List<RiskFlagDto> flags = rules.evaluate("[]", files);
+        List<RiskFlagDto> flags = rules.evaluate(List.of(), files);
 
         assertTrue(flags.stream().anyMatch(f -> f.getRule().equals("crossCuttingConcern")));
         assertEquals(RiskLevel.HIGH, flags.stream()
@@ -47,31 +52,27 @@ class RiskFlagRulesEnhancedTest {
 
     @Test
     void detectCommitRisks_revertCommit_flagged() {
-        String commits = "[{\"message\": \"Revert feat(auth) add OAuth\"}]";
+        List<CommitSummaryDto> commits = List.of(commit("Revert feat(auth) add OAuth"));
 
-        List<RiskFlagDto> flags = rules.evaluate(commits, "[]");
+        List<RiskFlagDto> flags = rules.evaluate(commits, List.of());
 
         assertTrue(flags.stream().anyMatch(f -> f.getRule().equals("revertCommits")));
     }
 
     @Test
     void detectCommitRisks_wipCommit_flagged() {
-        String commits = """
-                [{"message": "WIP: working on dashboard"}]
-                """;
+        List<CommitSummaryDto> commits = List.of(commit("WIP: working on dashboard"));
 
-        List<RiskFlagDto> flags = rules.evaluate(commits, "[]");
+        List<RiskFlagDto> flags = rules.evaluate(commits, List.of());
 
         assertTrue(flags.stream().anyMatch(f -> f.getRule().equals("wipCommits")));
     }
 
     @Test
     void detectDependencyRisks_pomChange_flagged() {
-        String files = """
-                [{"filename": "pom.xml", "additions": 10, "deletions": 5}]
-                """;
+        List<ChangedFileDto> files = List.of(file("pom.xml", 10, 5));
 
-        List<RiskFlagDto> flags = rules.evaluate("[]", files);
+        List<RiskFlagDto> flags = rules.evaluate(List.of(), files);
 
         assertTrue(flags.stream().anyMatch(f -> f.getRule().equals("pomDependencyChange")));
     }

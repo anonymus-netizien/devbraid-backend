@@ -1,8 +1,15 @@
 package com.devbraid.ai.service;
 
 import com.devbraid.changethread.entity.ChangeThread;
+import com.devbraid.github.dto.response.ChangedFileDto;
+import com.devbraid.github.dto.response.CommitSummaryDto;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 /**
  * Builds structured prompts for AI analysis and brief generation.
@@ -10,7 +17,10 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class PromptBuilder {
+
+    private final ObjectMapper objectMapper;
 
     /**
      * Build a prompt for AI-powered brief generation from thread data.
@@ -22,21 +32,19 @@ public class PromptBuilder {
         prompt.append("Repository: ").append(thread.getRepositoryFullName()).append("\n");
         prompt.append("Branch: ").append(thread.getHeadBranch()).append(" → ").append(thread.getBaseBranch()).append("\n\n");
 
-        if (thread.getCommits() != null) {
-            prompt.append("### Commits\n").append(thread.getCommits()).append("\n\n");
-        }
-        if (thread.getChangedFiles() != null) {
-            prompt.append("### Changed Files\n").append(thread.getChangedFiles()).append("\n\n");
-        }
-        if (thread.getRiskReport() != null) {
-            prompt.append("### Risk Assessment\n").append(thread.getRiskReport()).append("\n\n");
-        }
+        appendJson(prompt, "### Commits", thread.getCommits());
+        appendJson(prompt, "### Changed Files", thread.getChangedFiles());
+        appendJson(prompt, "### Risk Assessment", thread.getRiskReport());
 
         prompt.append("Generate a Markdown brief with:\n");
         prompt.append("1. **Summary** — What changed and why\n");
         prompt.append("2. **Key Changes** — List of important modifications\n");
         prompt.append("3. **Risk Assessment** — Potential risks and mitigations\n");
-        prompt.append("4. **Testing Recommendations** — What to test\n");
+        prompt.append("4. **Testing Recommendations** — What to test\n\n");
+        prompt.append("CITATION RULE (mandatory): Every factual claim MUST be immediately followed by a citation ");
+        prompt.append("marker in one of these forms: [file: <path>], [commit: <sha>], or [source: <reference>]. ");
+        prompt.append("If a statement is your own reasoning or a guess, mark it [inference] instead. ");
+        prompt.append("Output is rejected if it contains claims with neither a citation marker nor an [inference] marker.\n");
 
         return prompt.toString();
     }
@@ -58,10 +66,7 @@ public class PromptBuilder {
             sb.append("**Overall Risk:** ").append(thread.getRiskLevel()).append("\n\n");
         }
 
-        if (thread.getRiskReport() != null) {
-            sb.append("### Risk Flags\n\n");
-            sb.append(thread.getRiskReport()).append("\n\n");
-        }
+        appendJson(sb, "### Risk Flags", thread.getRiskReport());
 
         sb.append("---\n\n");
         sb.append("*This brief was generated using template fallback (AI service unavailable).\n");
@@ -71,13 +76,14 @@ public class PromptBuilder {
     }
 
     /**
-     * Build a prompt for AI-powered risk analysis from commits and changed files.
+     * Build a prompt for AI-powered risk analysis from typed commits and changed files.
      */
-    public String buildAnalysisPrompt(String commitsJson, String changedFilesJson, java.util.List<com.devbraid.analysis.dto.RiskFlagDto> flags) {
+    public String buildAnalysisPrompt(List<CommitSummaryDto> commits, List<ChangedFileDto> changedFiles,
+                                      java.util.List<com.devbraid.analysis.dto.RiskFlagDto> flags) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("Analyze these code changes and provide a structured risk assessment.\n\n");
-        prompt.append("Changed files:\n").append(changedFilesJson != null ? changedFilesJson : "N/A").append("\n\n");
-        prompt.append("Commits:\n").append(commitsJson != null ? commitsJson : "N/A").append("\n\n");
+        appendJson(prompt, "Changed files", changedFiles);
+        appendJson(prompt, "Commits", commits);
         prompt.append("Pre-computed risk flags:\n");
         for (com.devbraid.analysis.dto.RiskFlagDto flag : flags) {
             prompt.append("- ").append(flag.getRule()).append(": ").append(flag.getMessage()).append("\n");
@@ -90,13 +96,14 @@ public class PromptBuilder {
      * Build a prompt for AI-generated decision note suggestions.
      * Sprint 5: enriches diff context with commit analysis for better note generation.
      */
-    public String buildDecisionNotePrompt(String commitsJson, String changedFilesJson, java.util.List<String> riskIndicators) {
+    public String buildDecisionNotePrompt(List<CommitSummaryDto> commits, List<ChangedFileDto> changedFiles,
+                                          java.util.List<String> riskIndicators) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("Based on the following code changes, suggest 2-3 decision notes that capture the 'why' behind these changes.\n\n");
-        prompt.append("Changed files:\n").append(changedFilesJson != null ? changedFilesJson : "N/A").append("\n\n");
-        prompt.append("Commits:\n").append(commitsJson != null ? commitsJson : "N/A").append("\n\n");
+        appendJson(prompt, "Changed files", changedFiles);
+        appendJson(prompt, "Commits", commits);
 
-        if (!riskIndicators.isEmpty()) {
+        if (riskIndicators != null && !riskIndicators.isEmpty()) {
             prompt.append("Risk indicators:\n");
             for (String indicator : riskIndicators) {
                 prompt.append("- ").append(indicator).append("\n");
@@ -110,5 +117,20 @@ public class PromptBuilder {
         prompt.append("3. Priority (high, medium, low)\n");
 
         return prompt.toString();
+    }
+
+    /**
+     * Serialize a typed value to JSON for prompt context.
+     * ponytail: prompt-building helper — if serialization ever fails, degrade to toString.
+     */
+    private void appendJson(StringBuilder sb, String heading, Object value) {
+        if (value == null) return;
+        sb.append(heading).append("\n");
+        try {
+            sb.append(objectMapper.writeValueAsString(value));
+        } catch (JsonProcessingException e) {
+            sb.append(value);
+        }
+        sb.append("\n\n");
     }
 }

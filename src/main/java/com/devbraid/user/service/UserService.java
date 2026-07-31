@@ -224,11 +224,11 @@ public class UserService {
         refreshTokenRepository.save(tokenEntity);
     }
 
+    // ponytail: MessageDigest is NOT thread-safe — create per-call (JDK caches internally)
     private String hashToken(String token) {
-        // Inline SHA-256 hash — replaces former TokenHasher utility
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 not available", e);
         }

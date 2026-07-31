@@ -3,6 +3,8 @@ package com.devbraid.changethread.dto.response;
 import com.devbraid.analysis.RiskLevel;
 import com.devbraid.changethread.entity.ThreadSource;
 import com.devbraid.changethread.entity.ThreadStatus;
+import com.devbraid.github.dto.response.ChangedFileDto;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,6 +12,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -27,10 +30,10 @@ public class ThreadResponse {
     private ThreadSource source;
     private ThreadStatus status;
     private String commitSha;
-    private String commits;
-    private String changedFiles;
+    private List<CommitSummaryDto> commits;
+    private List<ChangedFileDto> changedFiles;
     private RiskLevel riskLevel;
-    private String riskReport;
+    private Map<String, Object> riskReport;
     private List<NoteResponse> notes;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

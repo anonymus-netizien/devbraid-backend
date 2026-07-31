@@ -26,4 +26,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
             @Param("start") OffsetDateTime start,
             @Param("end") OffsetDateTime end,
             Pageable pageable);
+
+    Page<AuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }

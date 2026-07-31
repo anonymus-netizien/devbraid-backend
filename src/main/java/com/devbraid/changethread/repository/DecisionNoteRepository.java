@@ -8,11 +8,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface DecisionNoteRepository extends JpaRepository<DecisionNote, UUID> {
 
     List<DecisionNote> findByThreadIdOrderByCreatedAtDesc(UUID threadId);
+
+    Optional<DecisionNote> findByIdAndAuthorId(UUID id, UUID authorId);
 
     List<DecisionNote> findByThreadIdAndAuthorId(UUID threadId, UUID authorId);
 

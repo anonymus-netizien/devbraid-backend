@@ -91,7 +91,7 @@ class BriefBuilderServiceTest {
         when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
                 .thenReturn(Optional.of(testThread));
         when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
-        when(aiProvider.analyze("Test prompt")).thenReturn("AI-generated content");
+        when(aiProvider.analyze("Test prompt")).thenReturn("**Summary** Added auth [commit:abc123]. **Risk** Low [inference].");
         when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.empty());
         when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
         when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
@@ -99,7 +99,7 @@ class BriefBuilderServiceTest {
                     BriefResponse r = new BriefResponse();
                     r.setId(testBrief.getId());
                     r.setThreadId(testThread.getId());
-                    r.setContent("AI-generated content");
+                    r.setContent("**Summary** Added auth [commit:abc123]. **Risk** Low [inference].");
                     r.setPublishedToGithub(false);
                     return r;
                 });
@@ -107,19 +107,57 @@ class BriefBuilderServiceTest {
         BriefResponse response = briefBuilderService.generateBrief(testUser, testThread.getId());
 
         assertThat(response).isNotNull();
-        assertThat(response.getContent()).isEqualTo("AI-generated content");
+        assertThat(response.getContent()).isEqualTo("**Summary** Added auth [commit:abc123]. **Risk** Low [inference].");
         assertThat(response.getPublishedToGithub()).isFalse();
         verify(briefRepository).save(any(ChangeBrief.class));
         verify(aiProvider).analyze("Test prompt");
     }
 
     @Test
-    @DisplayName("generateBrief() falls back to template when AI is unavailable")
-    void generateBrief_AIFailure_UsesTemplateFallback() throws Exception {
+    @DisplayName("generateBrief() throws RuntimeException when AI is unavailable")
+    void generateBrief_AIFailure_throwsRuntimeException() throws Exception {
         when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
                 .thenReturn(Optional.of(testThread));
         when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
         when(aiProvider.analyze("Test prompt")).thenThrow(new RuntimeException("API unavailable"));
+
+        assertThatThrownBy(() -> briefBuilderService.generateBrief(testUser, testThread.getId()))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("AI brief generation failed");
+    }
+
+    @Test
+    @DisplayName("generateBrief() updates existing brief if present")
+    void generateBrief_ExistingBrief_UpdatesContent() throws Exception {
+        when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
+                .thenReturn(Optional.of(testThread));
+        when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
+        when(aiProvider.analyze("Test prompt")).thenReturn("Updated content [file:src/auth/AuthService.java]");
+        when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.of(testBrief));
+        when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
+        when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
+                .thenAnswer(invocation -> {
+                    BriefResponse r = new BriefResponse();
+                    r.setId(testBrief.getId());
+                    r.setThreadId(testThread.getId());
+                    r.setContent("Updated content [file:src/auth/AuthService.java]");
+                    return r;
+                });
+
+        BriefResponse response = briefBuilderService.generateBrief(testUser, testThread.getId());
+
+        assertThat(response).isNotNull();
+        assertThat(response.getContent()).isEqualTo("Updated content [file:src/auth/AuthService.java]");
+        verify(briefRepository).save(any(ChangeBrief.class));
+    }
+
+    @Test
+    @DisplayName("generateBrief() falls back to template when AI output lacks evidence markers")
+    void generateBrief_AIContentWithoutMarkers_UsesTemplateFallback() throws Exception {
+        when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
+                .thenReturn(Optional.of(testThread));
+        when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
+        when(aiProvider.analyze("Test prompt")).thenReturn("Plausible markdown with no markers");
         when(promptBuilder.buildTemplateBrief(testThread)).thenReturn("Template content");
         when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.empty());
         when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
@@ -138,31 +176,6 @@ class BriefBuilderServiceTest {
         assertThat(response.getContent()).isEqualTo("Template content");
         verify(aiProvider).analyze("Test prompt");
         verify(promptBuilder).buildTemplateBrief(testThread);
-    }
-
-    @Test
-    @DisplayName("generateBrief() updates existing brief if present")
-    void generateBrief_ExistingBrief_UpdatesContent() throws Exception {
-        when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
-                .thenReturn(Optional.of(testThread));
-        when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
-        when(aiProvider.analyze("Test prompt")).thenReturn("Updated content");
-        when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.of(testBrief));
-        when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
-        when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
-                .thenAnswer(invocation -> {
-                    BriefResponse r = new BriefResponse();
-                    r.setId(testBrief.getId());
-                    r.setThreadId(testThread.getId());
-                    r.setContent("Updated content");
-                    return r;
-                });
-
-        BriefResponse response = briefBuilderService.generateBrief(testUser, testThread.getId());
-
-        assertThat(response).isNotNull();
-        assertThat(response.getContent()).isEqualTo("Updated content");
-        verify(briefRepository).save(any(ChangeBrief.class));
     }
 
     @Test

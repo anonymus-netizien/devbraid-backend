@@ -2,12 +2,12 @@ package com.devbraid.analysis;
 
 import com.devbraid.analysis.dto.RiskFlagDto;
 import com.devbraid.analysis.service.RiskFlagRules;
-import com.devbraid.analysis.util.JsonParseUtils;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.devbraid.github.dto.response.ChangedFileDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,9 +21,13 @@ class RiskFlagRulesTest {
 
     private RiskFlagRules riskFlagRules;
 
+    private static ChangedFileDto file(String name, int add, int del) {
+        return new ChangedFileDto(name, "modified", add, del);
+    }
+
     @BeforeEach
     void setUp() {
-        riskFlagRules = new RiskFlagRules(new JsonParseUtils(new ObjectMapper()));
+        riskFlagRules = new RiskFlagRules();
     }
 
     @Test
@@ -36,9 +40,7 @@ class RiskFlagRulesTest {
     @Test
     @DisplayName("evaluate() flags large diff when lines > 500")
     void evaluate_LargeDiff_ReturnsMediumFlag() {
-        String files = """
-                [{"filename":"src/main.java","additions":300,"deletions":250}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main.java", 300, 250));
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).anyMatch(f ->
@@ -49,14 +51,12 @@ class RiskFlagRulesTest {
     @Test
     @DisplayName("evaluate() flags many files when count > 20")
     void evaluate_ManyFiles_ReturnsMediumFlag() {
-        StringBuilder json = new StringBuilder("[");
+        List<ChangedFileDto> files = new ArrayList<>();
         for (int i = 0; i < 25; i++) {
-            if (i > 0) json.append(",");
-            json.append("{\"filename\":\"file").append(i).append(".java\",\"additions\":1,\"deletions\":0}");
+            files.add(file("file" + i + ".java", 1, 0));
         }
-        json.append("]");
 
-        List<RiskFlagDto> flags = riskFlagRules.evaluate(null, json.toString());
+        List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).anyMatch(f ->
                 "manyFiles".equals(f.getRule()) && f.getSeverity() == RiskLevel.MEDIUM
@@ -66,9 +66,7 @@ class RiskFlagRulesTest {
     @Test
     @DisplayName("evaluate() flags security paths")
     void evaluate_SecurityPaths_ReturnsHighFlag() {
-        String files = """
-                [{"filename":"src/main/java/com/app/security/AuthService.java","additions":10,"deletions":2}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main/java/com/app/security/AuthService.java", 10, 2));
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).anyMatch(f ->
@@ -79,9 +77,7 @@ class RiskFlagRulesTest {
     @Test
     @DisplayName("evaluate() flags missing tests")
     void evaluate_NoTests_ReturnsLowFlag() {
-        String files = """
-                [{"filename":"src/main.java","additions":10,"deletions":2}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main.java", 10, 2));
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).anyMatch(f ->
@@ -92,9 +88,10 @@ class RiskFlagRulesTest {
     @Test
     @DisplayName("evaluate() does not flag noTests when test files are present")
     void evaluate_WithTests_DoesNotFlagNoTests() {
-        String files = """
-                [{"filename":"src/main.java","additions":10,"deletions":2},{"filename":"src/test/java/MainTest.java","additions":5,"deletions":0}]
-                """;
+        List<ChangedFileDto> files = List.of(
+                file("src/main.java", 10, 2),
+                file("src/test/java/MainTest.java", 5, 0)
+        );
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).noneMatch(f -> "noTests".equals(f.getRule()));
@@ -103,9 +100,7 @@ class RiskFlagRulesTest {
     @Test
     @DisplayName("evaluate() flags config changes")
     void evaluate_ConfigChanges_ReturnsLowFlag() {
-        String files = """
-                [{"filename":"src/main/resources/application.yml","additions":2,"deletions":1}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main/resources/application.yml", 2, 1));
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).anyMatch(f ->
@@ -116,9 +111,7 @@ class RiskFlagRulesTest {
     @Test
     @DisplayName("evaluate() flags migration files")
     void evaluate_MigrationFiles_ReturnsMediumFlag() {
-        String files = """
-                [{"filename":"src/main/resources/db/migration/V2__add_users.sql","additions":15,"deletions":0}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main/resources/db/migration/V2__add_users.sql", 15, 0));
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).anyMatch(f ->
@@ -129,9 +122,7 @@ class RiskFlagRulesTest {
     @Test
     @DisplayName("evaluate() flags dependency changes")
     void evaluate_DependencyChanges_ReturnsLowFlag() {
-        String files = """
-                [{"filename":"pom.xml","additions":5,"deletions":3}]
-                """;
+        List<ChangedFileDto> files = List.of(file("pom.xml", 5, 3));
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         assertThat(flags).anyMatch(f ->
@@ -160,9 +151,7 @@ class RiskFlagRulesTest {
     @Test
     @DisplayName("evaluate() sorts flags by severity descending")
     void evaluate_SortsFlagsBySeverity() {
-        String files = """
-                [{"filename":"src/main/java/com/app/security/AuthService.java","additions":600,"deletions":0}]
-                """;
+        List<ChangedFileDto> files = List.of(file("src/main/java/com/app/security/AuthService.java", 600, 0));
         List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
 
         // HIGH (securityPaths) should come before MEDIUM (largeDiff)

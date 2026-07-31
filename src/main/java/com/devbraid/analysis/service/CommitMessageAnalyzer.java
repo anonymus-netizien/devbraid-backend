@@ -1,6 +1,6 @@
 package com.devbraid.analysis.service;
 
-import com.devbraid.analysis.util.JsonParseUtils;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static java.util.Map.entry;
 
 /**
  * Analyzes commit messages to extract intent, semantic tags, and scope.
@@ -44,24 +46,31 @@ public class CommitMessageAnalyzer {
             Pattern.compile("(?i)\\bincompatible\\b"),
             Pattern.compile("(?i)\\bmigrate?d?\\b.*\\bfrom\\b.*\\bto\\b")
     );
-    private final JsonParseUtils jsonParseUtils;
+    // ponytail: Map.ofEntries replaces 7 sequential if-else for scope categorization
+    private static final Map<String, String> SCOPE_CATEGORY_MAP = Map.ofEntries(
+            entry("auth", "security"), entry("security", "security"),
+            entry("api", "api"), entry("controller", "api"),
+            entry("db", "data"), entry("repo", "data"), entry("entity", "data"),
+            entry("ui", "ui"), entry("frontend", "ui"), entry("component", "ui"),
+            entry("test", "test"), entry("spec", "test"),
+            entry("config", "config"), entry("env", "config")
+    );
 
     /**
-     * Analyze a serialized JSON array of commits and extract structured intent.
+     * Analyze typed commits and extract structured intent — no JSON parsing.
      */
-    public CommitAnalysisResult analyzeCommits(String commitsJson) {
-        if (commitsJson == null || commitsJson.isBlank()) {
+    public CommitAnalysisResult analyzeCommits(List<CommitSummaryDto> commits) {
+        if (commits == null || commits.isEmpty()) {
             return new CommitAnalysisResult(List.of(), Map.of(), false, List.of());
         }
 
-        List<Map<String, Object>> commits = jsonParseUtils.parseArray(commitsJson);
         List<CommitInsight> insights = new ArrayList<>();
         Map<String, Integer> intentCounts = new HashMap<>();
         List<String> breakingChanges = new ArrayList<>();
         boolean hasBreakingChange = false;
 
-        for (Map<String, Object> commit : commits) {
-            String message = jsonParseUtils.getString(commit, "message");
+        for (CommitSummaryDto commit : commits) {
+            String message = commit.getMessage();
             if (message == null) continue;
 
             CommitInsight insight = analyzeSingleCommit(message);
@@ -175,13 +184,11 @@ public class CommitMessageAnalyzer {
     private String categorizeScope(String scope) {
         if (scope == null) return "general";
         String lower = scope.toLowerCase();
-        if (lower.contains("auth") || lower.contains("security")) return "security";
-        if (lower.contains("api") || lower.contains("controller")) return "api";
-        if (lower.contains("db") || lower.contains("repo") || lower.contains("entity")) return "data";
-        if (lower.contains("ui") || lower.contains("frontend") || lower.contains("component")) return "ui";
-        if (lower.contains("test") || lower.contains("spec")) return "test";
-        if (lower.contains("config") || lower.contains("env")) return "config";
-        return "general";
+        return SCOPE_CATEGORY_MAP.entrySet().stream()
+                .filter(e -> lower.contains(e.getKey()))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse("general");
     }
 
     // ── Result DTOs ─────────────────────────────────────────────────
