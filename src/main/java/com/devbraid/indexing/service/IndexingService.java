@@ -1,10 +1,20 @@
 package com.devbraid.indexing.service;
 
+import com.devbraid.indexing.entity.CodebaseEdge;
 import com.devbraid.indexing.entity.CodebaseIndex;
+import com.devbraid.indexing.entity.CodebaseNode;
 import com.devbraid.indexing.entity.FileIndex;
+import com.devbraid.indexing.repository.CodebaseEdgeRepository;
 import com.devbraid.indexing.repository.CodebaseIndexRepository;
+import com.devbraid.indexing.repository.CodebaseNodeRepository;
 import com.devbraid.indexing.repository.FileIndexRepository;
 import com.devbraid.user.entity.User;
+import com.github.javaparser.StaticJavaParser;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.EnumDeclaration;
+import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -14,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Service for indexing codebase files — extracts functions, classes, imports,
@@ -79,6 +90,8 @@ public class IndexingService {
 
     private final CodebaseIndexRepository codebaseIndexRepository;
     private final FileIndexRepository fileIndexRepository;
+    private final CodebaseNodeRepository codebaseNodeRepository;
+    private final CodebaseEdgeRepository codebaseEdgeRepository;
 
     /**
      * Create a new codebase index entry (PENDING status).
@@ -115,21 +128,31 @@ public class IndexingService {
         codebaseIndexRepository.save(index);
 
         try {
+            // Re-index safety: clear any prior graph rows for this index before rebuilding.
+            // ponytail: delete-then-insert avoids UNIQUE constraint violations on re-runs.
+            codebaseEdgeRepository.deleteByCodebaseIndexId(index.getId());
+            codebaseNodeRepository.deleteByCodebaseIndexId(index.getId());
+            index.setTotalDependencies(0);
+
             int totalFunctions = 0;
             int totalClasses = 0;
             int indexedFiles = 0;
 
             for (String fileContent : fileContents) {
-                try {
-                    FileIndex fileIndex = parseFile(index, fileContent);
-                    if (fileIndex != null) {
-                        fileIndexRepository.save(fileIndex);
-                        totalFunctions += fileIndex.getFunctionCount();
-                        totalClasses += fileIndex.getClassCount();
-                        indexedFiles++;
+                // Guard against null/blank entries before they can NPE mid-batch (no try/catch here).
+                if (fileContent == null || fileContent.isBlank()) {
+                    continue;
+                }
+                ParsedFile parsed = parseFile(index, fileContent);
+                if (parsed != null && parsed.fileIndex() != null) {
+                    FileIndex fileIndex = parsed.fileIndex();
+                    fileIndexRepository.save(fileIndex);
+                    totalFunctions += fileIndex.getFunctionCount();
+                    totalClasses += fileIndex.getClassCount();
+                    indexedFiles++;
+                    if (parsed.javaAst() != null) {
+                        persistJavaGraph(index, fileIndex, parsed.javaAst());
                     }
-                } catch (Exception e) {
-                    log.warn("Failed to parse file: {}", e.getMessage());
                 }
             }
 
@@ -153,8 +176,10 @@ public class IndexingService {
 
     /**
      * Parse a single file and extract structural information.
+     * Returns the parsed Java AST (null for non-Java or when regex fallback was used)
+     * so the caller can build the code graph without re-parsing. ponytail: parse once, reuse.
      */
-    private FileIndex parseFile(CodebaseIndex codebaseIndex, String fileContent) {
+    private ParsedFile parseFile(CodebaseIndex codebaseIndex, String fileContent) {
         String[] lines = fileContent.split("\n");
         String filePath = lines.length > 0 ? extractFilePath(fileContent) : "unknown";
 
@@ -171,8 +196,9 @@ public class IndexingService {
                 .lineCount(lines.length)
                 .build();
 
+        CompilationUnit javaAst = null;
         switch (language) {
-            case "java" -> parseJavaFile(fileIndex, fileContent);
+            case "java" -> javaAst = parseJavaFile(fileIndex, fileContent);
             case "typescript", "javascript", "tsx", "jsx" -> parseTsFile(fileIndex, fileContent);
             case "python" -> parsePythonFile(fileIndex, fileContent);
             case "go" -> parseGoFile(fileIndex, fileContent);
@@ -180,10 +206,65 @@ public class IndexingService {
         }
 
         fileIndex.setRiskSignals(detectRiskSignals(fileContent, language));
-        return fileIndex;
+        return new ParsedFile(fileIndex, javaAst);
     }
 
-    private void parseJavaFile(FileIndex fileIndex, String content) {
+    private record ParsedFile(FileIndex fileIndex, CompilationUnit javaAst) {
+    }
+
+    private CompilationUnit parseJavaFile(FileIndex fileIndex, String content) {
+        try {
+            // Strip the leading file-path line (indexing convention: first line is the path)
+            int firstNewline = content.indexOf('\n');
+            String source = firstNewline > 0 ? content.substring(firstNewline + 1) : content;
+            CompilationUnit cu = StaticJavaParser.parse(source);
+
+            List<String> classes = new ArrayList<>();
+            List<String> methods = new ArrayList<>();
+
+            cu.accept(new VoidVisitorAdapter<Void>() {
+                @Override
+                public void visit(ClassOrInterfaceDeclaration n, Void arg) {
+                    super.visit(n, arg);
+                    classes.add(n.getNameAsString());
+                }
+
+                @Override
+                public void visit(EnumDeclaration n, Void arg) {
+                    super.visit(n, arg);
+                    classes.add(n.getNameAsString());
+                }
+
+                @Override
+                public void visit(MethodDeclaration n, Void arg) {
+                    super.visit(n, arg);
+                    methods.add(n.getNameAsString() + ":" + n.getTypeAsString());
+                }
+            }, null);
+
+            List<String> imports = new ArrayList<>();
+            cu.getImports().forEach(imp -> imports.add(imp.getNameAsString()));
+
+            fileIndex.setClasses(String.join(",", classes));
+            fileIndex.setClassCount(classes.size());
+            fileIndex.setFunctions(String.join(",", methods));
+            fileIndex.setFunctionCount(methods.size());
+            fileIndex.setImports(String.join(",", imports));
+            return cu;
+        } catch (Exception e) {
+            // ponytail: JavaParser failed (unparseable snippet) — degrade to regex, never throw.
+            // Returns null so no graph is built for this file (consistent with the regex path).
+            log.warn("JavaParser failed for {} — falling back to regex: {}", fileIndex.getFilePath(), e.getMessage());
+            parseJavaFileRegex(fileIndex, content);
+            return null;
+        }
+    }
+
+    /**
+     * Regex fallback for Java extraction (kept for unparseable fragments).
+     * ponytail: regex remains the fallback, JavaParser is the primary path for .java files.
+     */
+    private void parseJavaFileRegex(FileIndex fileIndex, String content) {
         List<String> classes = new ArrayList<>();
         Matcher classMatcher = JAVA_CLASS.matcher(content);
         while (classMatcher.find()) {
@@ -289,6 +370,122 @@ public class IndexingService {
             imports.add(importMatcher.group(1));
         }
         fileIndex.setImports(String.join(",", imports));
+    }
+
+    /**
+     * Build and persist the code graph (nodes + edges) for a Java file from its parsed AST.
+     * Creates FILE, CLASS/INTERFACE, METHOD nodes with CONTAINS edges (structural, per-file).
+     * Method qualified names include the begin line so overloads don't collide on the
+     * UNIQUE constraint. ponytail: cross-file IMPORTS linking deferred — would need a
+     * symbol solver; a file never imports its own types, so an in-file IMPORTS pass is dead code.
+     */
+    private void persistJavaGraph(CodebaseIndex index, FileIndex fileIndex, CompilationUnit cu) {
+        List<CodebaseNode> nodes = new ArrayList<>();
+        List<CodebaseEdge> edges = new ArrayList<>();
+
+        CodebaseNode fileNode = CodebaseNode.builder()
+                .codebaseIndex(index)
+                .fileIndex(fileIndex)
+                .nodeType("FILE")
+                .qualifiedName(fileIndex.getFilePath())
+                .filePath(fileIndex.getFilePath())
+                .startLine(1)
+                .endLine(fileIndex.getLineCount())
+                .build();
+        nodes.add(fileNode);
+
+        // ponytail: enums are indexed as classes in FileIndex but not graphed — structural symmetry
+        // isn't worth the extra visitor; add an EnumDeclaration visit here if graph parity is ever needed.
+        cu.accept(new VoidVisitorAdapter<Void>() {
+            @Override
+            public void visit(ClassOrInterfaceDeclaration n, Void arg) {
+                super.visit(n, arg);
+                String name = n.getNameAsString();
+                CodebaseNode node = CodebaseNode.builder()
+                        .codebaseIndex(index)
+                        .fileIndex(fileIndex)
+                        .nodeType(n.isInterface() ? "INTERFACE" : "CLASS")
+                        .qualifiedName(fileIndex.getFilePath() + "#" + name)
+                        .filePath(fileIndex.getFilePath())
+                        .startLine(n.getBegin().map(p -> p.line).orElse(0))
+                        .endLine(n.getEnd().map(p -> p.line).orElse(0))
+                        .build();
+                nodes.add(node);
+                edges.add(edge(index, fileNode, node, "CONTAINS"));
+            }
+
+            @Override
+            public void visit(MethodDeclaration n, Void arg) {
+                super.visit(n, arg);
+                String name = n.getNameAsString();
+                int line = n.getBegin().map(p -> p.line).orElse(0);
+                CodebaseNode node = CodebaseNode.builder()
+                        .codebaseIndex(index)
+                        .fileIndex(fileIndex)
+                        .nodeType("METHOD")
+                        .qualifiedName(fileIndex.getFilePath() + "#" + name + ":" + line)
+                        .filePath(fileIndex.getFilePath())
+                        .startLine(line)
+                        .endLine(n.getEnd().map(p -> p.line).orElse(0))
+                        .build();
+                nodes.add(node);
+                edges.add(edge(index, fileNode, node, "CONTAINS"));
+            }
+        }, null);
+
+        codebaseNodeRepository.saveAll(nodes);
+        codebaseEdgeRepository.saveAll(edges);
+        index.setTotalDependencies(index.getTotalDependencies() + edges.size());
+    }
+
+    private CodebaseEdge edge(CodebaseIndex index, CodebaseNode source, CodebaseNode target, String type) {
+        return CodebaseEdge.builder()
+                .codebaseIndex(index)
+                .sourceNode(source)
+                .targetNode(target)
+                .edgeType(type)
+                .build();
+    }
+
+    /**
+     * Query the code graph: all nodes for an index, or transitive reachability from a node via recursive CTE.
+     * ponytail: single CTE query returns depth-limited reachable set; full graph if no nodeId given.
+     * Note: edges are structural FILE->X, so traversal is rooted at a FILE node;
+     * a CLASS/METHOD nodeId yields an empty reachable set by design.
+     */
+    @Transactional(readOnly = true)
+    public DependencyGraphResponse getDependencyGraph(UUID indexId, UUID nodeId, int depth) {
+        List<CodebaseNode> nodes;
+        if (nodeId == null) {
+            nodes = codebaseNodeRepository.findByCodebaseIndexIdOrderByQualifiedName(indexId);
+        } else {
+            nodes = new ArrayList<>();
+            for (Object[] row : codebaseEdgeRepository.findReachableNodes(indexId, nodeId, depth)) {
+                nodes.add(CodebaseNode.builder()
+                        .id((UUID) row[0])
+                        .nodeType((String) row[1])
+                        .qualifiedName((String) row[2])
+                        .filePath((String) row[3])
+                        .startLine(((Number) row[4]).intValue())
+                        .endLine(((Number) row[5]).intValue())
+                        .build());
+            }
+            // Include the queried root node itself so its outgoing edges survive the filter.
+            codebaseNodeRepository.findById(nodeId).ifPresent(root -> nodes.add(0, root));
+        }
+        // Return only edges whose endpoints are in the node set — keeps the response consistent
+        // for both the full-graph and the reachable-subset cases.
+        Set<UUID> nodeIds = nodes.stream().map(CodebaseNode::getId).collect(Collectors.toSet());
+        List<CodebaseEdge> edges = codebaseEdgeRepository.findByCodebaseIndexId(indexId).stream()
+                .filter(e -> nodeIds.contains(e.getSourceNode().getId())
+                        && nodeIds.contains(e.getTargetNode().getId()))
+                .toList();
+        return new DependencyGraphResponse(nodes, edges);
+    }
+
+    // ── Graph response DTO ───────────────────────────────────────────
+
+    public record DependencyGraphResponse(List<CodebaseNode> nodes, List<CodebaseEdge> edges) {
     }
 
     /**

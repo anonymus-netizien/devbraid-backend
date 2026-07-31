@@ -66,6 +66,18 @@ public class IndexingController {
         return ResponseEntity.ok(ApiResponse.success("Files by language", files));
     }
 
+    @GetMapping("/{indexId}/graph")
+    public ResponseEntity<ApiResponse<IndexingService.DependencyGraphResponse>> getGraph(
+            @PathVariable UUID indexId,
+            @RequestParam(required = false) UUID nodeId,
+            @RequestParam(defaultValue = "3") int depth) {
+        // ponytail: clamp depth to a sane bound — deeper traversal is a slow query for no MVP value
+        int safeDepth = Math.min(Math.max(depth, 1), 10);
+        IndexingService.DependencyGraphResponse graph =
+                indexingService.getDependencyGraph(indexId, nodeId, safeDepth);
+        return ResponseEntity.ok(ApiResponse.success("Dependency graph retrieved", graph));
+    }
+
     public record StartIndexRequest(
             String repository,
             String branch,

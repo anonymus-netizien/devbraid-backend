@@ -104,4 +104,39 @@ class IndexingControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
     }
+
+    @Test
+    void getGraph_noNodeId_returnsAllNodes() {
+        var graph = new IndexingService.DependencyGraphResponse(List.of(), List.of());
+        when(indexingService.getDependencyGraph(testIndex.getId(), null, 3))
+                .thenReturn(graph);
+
+        ResponseEntity<?> response = controller.getGraph(testIndex.getId(), null, 3);
+
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    void getGraph_withNodeId_passesDepth() {
+        UUID nodeId = UUID.randomUUID();
+        var graph = new IndexingService.DependencyGraphResponse(List.of(), List.of());
+        when(indexingService.getDependencyGraph(testIndex.getId(), nodeId, 5))
+                .thenReturn(graph);
+
+        ResponseEntity<?> response = controller.getGraph(testIndex.getId(), nodeId, 5);
+
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    void getGraph_clampsDepthToMax10() {
+        // depth clamp happens in the controller: 99 -> 10
+        var graph = new IndexingService.DependencyGraphResponse(List.of(), List.of());
+        when(indexingService.getDependencyGraph(testIndex.getId(), null, 10))
+                .thenReturn(graph);
+
+        ResponseEntity<?> response = controller.getGraph(testIndex.getId(), null, 99);
+
+        assertEquals(200, response.getStatusCode().value());
+    }
 }

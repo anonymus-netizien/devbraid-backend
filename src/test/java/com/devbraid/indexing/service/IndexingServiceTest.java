@@ -1,8 +1,12 @@
 package com.devbraid.indexing.service;
 
+import com.devbraid.indexing.entity.CodebaseEdge;
 import com.devbraid.indexing.entity.CodebaseIndex;
+import com.devbraid.indexing.entity.CodebaseNode;
 import com.devbraid.indexing.entity.FileIndex;
+import com.devbraid.indexing.repository.CodebaseEdgeRepository;
 import com.devbraid.indexing.repository.CodebaseIndexRepository;
+import com.devbraid.indexing.repository.CodebaseNodeRepository;
 import com.devbraid.indexing.repository.FileIndexRepository;
 import com.devbraid.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +39,12 @@ class IndexingServiceTest {
 
     @Mock
     private FileIndexRepository fileIndexRepository;
+
+    @Mock
+    private CodebaseNodeRepository codebaseNodeRepository;
+
+    @Mock
+    private CodebaseEdgeRepository codebaseEdgeRepository;
 
     @InjectMocks
     private IndexingService indexingService;
@@ -527,6 +537,70 @@ class IndexingServiceTest {
             ArgumentCaptor<FileIndex> captor = ArgumentCaptor.forClass(FileIndex.class);
             verify(fileIndexRepository).save(captor.capture());
             assertTrue(captor.getValue().getRiskSignals().contains("god_class"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Code Graph Persistence Tests")
+    class CodeGraphTests {
+
+        @Test
+        @DisplayName("overloaded methods get distinct qualified names (no UNIQUE collision)")
+        void startIndexing_overloadedMethods_distinctQualifiedNames() {
+            String fileContent = "src/main/java/com/app/AuthService.java\n" +
+                    "public class AuthService {\n" +
+                    "    public LoginResponse login(String email) { return null; }\n" +
+                    "    public LoginResponse login(String email, String password) { return null; }\n" +
+                    "}";
+
+            when(codebaseIndexRepository.findById(testIndex.getId()))
+                    .thenReturn(Optional.of(testIndex));
+
+            indexingService.startIndexing(testIndex.getId(), List.of(fileContent));
+
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<CodebaseNode>> captor = ArgumentCaptor.forClass(List.class);
+            verify(codebaseNodeRepository).saveAll(captor.capture());
+
+            List<String> methodNames = captor.getValue().stream()
+                    .filter(n -> "METHOD".equals(n.getNodeType()))
+                    .map(CodebaseNode::getQualifiedName)
+                    .toList();
+            assertEquals(2, methodNames.size(), "expected both overloads as METHOD nodes");
+            assertEquals(2, methodNames.stream().distinct().count(), "qualified names must be distinct");
+        }
+
+        @Test
+        @DisplayName("regex-fallback Java file builds no graph instead of failing the run")
+        void startIndexing_unparseableJava_skipsGraph() {
+            // Contains a syntax error JavaParser cannot parse (unclosed brace + stray token).
+            String fileContent = "src/main/java/com/app/Broken.java\n" +
+                    "public class Broken {\n" +
+                    "    public void ok() {}\n" +
+                    "    @@@invalid@@@\n";
+
+            when(codebaseIndexRepository.findById(testIndex.getId()))
+                    .thenReturn(Optional.of(testIndex));
+
+            indexingService.startIndexing(testIndex.getId(), List.of(fileContent));
+
+            verify(fileIndexRepository).save(any(FileIndex.class));
+            // Graph persistence must be skipped for the regex-fallback file — no nodes, no edges.
+            verify(codebaseNodeRepository, never()).saveAll(any());
+            verify(codebaseEdgeRepository, never()).saveAll(any());
+        }
+
+        @Test
+        @DisplayName("null file content entry is skipped, not fatal")
+        void startIndexing_nullContent_skipped() {
+            when(codebaseIndexRepository.findById(testIndex.getId()))
+                    .thenReturn(Optional.of(testIndex));
+
+            // Arrays.asList allows null entries (List.of would NPE on null).
+            indexingService.startIndexing(testIndex.getId(),
+                    java.util.Arrays.asList("src/App.java\npublic class App {}", null, ""));
+
+            verify(fileIndexRepository, times(1)).save(any(FileIndex.class));
         }
     }
 
