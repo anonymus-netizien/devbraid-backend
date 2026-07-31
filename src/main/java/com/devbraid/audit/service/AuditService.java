@@ -1,5 +1,6 @@
 package com.devbraid.audit.service;
 
+import com.devbraid.audit.dto.response.AuditLogResponse;
 import com.devbraid.audit.entity.AuditLog;
 import com.devbraid.audit.repository.AuditLogRepository;
 import com.devbraid.user.entity.User;
@@ -80,6 +81,38 @@ public class AuditService {
     @Transactional(readOnly = true)
     public Page<AuditLog> getAuditLogsByDateRange(OffsetDateTime start, OffsetDateTime end, Pageable pageable) {
         return auditLogRepository.findByDateRange(start, end, pageable);
+    }
+
+    /**
+     * Admin search over the audit log, composing the existing repo queries by which filters are present.
+     * ponytail: if/else over four repo queries instead of a dynamic specification — one user, one query path.
+     * Note: userId wins over action when both are supplied — deliberately simple, no combined query.
+     */
+    @Transactional(readOnly = true)
+    public Page<AuditLogResponse> searchLogs(UUID userId, String action, Pageable pageable) {
+        Page<AuditLog> page;
+        if (userId != null) {
+            page = auditLogRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        } else if (action != null && !action.isBlank()) {
+            page = auditLogRepository.findByActionOrderByCreatedAtDesc(action, pageable);
+        } else {
+            page = auditLogRepository.findAllByOrderByCreatedAtDesc(pageable);
+        }
+        return page.map(this::toResponse);
+    }
+
+    private AuditLogResponse toResponse(AuditLog log) {
+        return new AuditLogResponse(
+                log.getId(),
+                log.getUser() != null ? log.getUser().getId() : null,
+                log.getAction(),
+                log.getEntityType(),
+                log.getEntityId(),
+                log.getDetails(),
+                log.getIpAddress(),
+                log.getUserAgent(),
+                log.getCreatedAt()
+        );
     }
 
     private String extractClientIp(HttpServletRequest request) {
