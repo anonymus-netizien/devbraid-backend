@@ -12,10 +12,11 @@ import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.repository.DecisionNoteRepository;
 import com.devbraid.github.client.GitHubApiClient;
+import com.devbraid.github.dto.response.ChangedFileDto;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.github.service.GitHubConnectionService;
 import com.devbraid.user.entity.User;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,8 +60,8 @@ public class ChangeThreadService {
      * @return created thread response
      * @throws GitHubNotConnectedException if user has no GitHub connection
      */
-    @Transactional(rollbackFor = JsonProcessingException.class)
-    public ThreadResponse createThread(User user, CreateThreadRequest req) throws JsonProcessingException {
+    @Transactional
+    public ThreadResponse createThread(User user, CreateThreadRequest req) {
         String decryptedPat = gitHubConnectionService.getDecryptedPatForUser(user);
 
         String[] parts = req.getRepositoryFullName().split("/");
@@ -76,16 +77,16 @@ public class ChangeThreadService {
         }
 
         // Fetch diff from GitHub — single branch vs cross-branch compare
-        String commitsJson = null;
-        String changedFilesJson = null;
+        List<CommitSummaryDto> commits = null;
+        List<ChangedFileDto> changedFiles = null;
         String latestCommitSha = null;
 
         if (req.getHeadBranch().equalsIgnoreCase(baseBranch)) {
             // Single-Branch Mode: fetch recent commits directly for this branch
-            List<com.devbraid.github.dto.response.CommitSummaryDto> branchCommits =
+            List<CommitSummaryDto> branchCommits =
                     gitHubApiClient.listCommits(decryptedPat, owner, repo, req.getHeadBranch(), 20);
             if (branchCommits != null && !branchCommits.isEmpty()) {
-                commitsJson = serializeToJson(branchCommits);
+                commits = branchCommits;
                 latestCommitSha = branchCommits.get(0).getSha();
             }
         } else {
@@ -94,8 +95,8 @@ public class ChangeThreadService {
                     decryptedPat, owner, repo, baseBranch, req.getHeadBranch()
             );
             if (compare != null) {
-                commitsJson = serializeToJson(compare.getCommits());
-                changedFilesJson = serializeToJson(compare.getFiles());
+                commits = compare.getCommits();
+                changedFiles = compare.getFiles();
                 if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
                     latestCommitSha = compare.getCommits()
                             .get(compare.getCommits().size() - 1).getSha();
@@ -111,8 +112,8 @@ public class ChangeThreadService {
                 .title(req.getTitle())
                 .description(req.getDescription())
                 .commitSha(latestCommitSha)
-                .commits(commitsJson)
-                .changedFiles(changedFilesJson)
+                .commits(commits)
+                .changedFiles(changedFiles)
                 .build();
 
         thread = threadRepository.save(thread);
@@ -175,8 +176,8 @@ public class ChangeThreadService {
         log.info("Deleted thread {} for user {}", threadId, user.getId());
     }
 
-    @Transactional(rollbackFor = JsonProcessingException.class)
-    public ThreadResponse refreshThread(User user, UUID threadId) throws JsonProcessingException {
+    @Transactional
+    public ThreadResponse refreshThread(User user, UUID threadId) {
         ChangeThread thread = threadRepository
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
@@ -191,8 +192,8 @@ public class ChangeThreadService {
                 decryptedPat, owner, repo, thread.getBaseBranch(), thread.getHeadBranch()
         );
         if (compare != null) {
-            thread.setCommits(serializeToJson(compare.getCommits()));
-            thread.setChangedFiles(serializeToJson(compare.getFiles()));
+            thread.setCommits(compare.getCommits());
+            thread.setChangedFiles(compare.getFiles());
             if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
                 thread.setCommitSha(compare.getCommits()
                         .get(compare.getCommits().size() - 1).getSha());
@@ -205,8 +206,8 @@ public class ChangeThreadService {
         snapshotService.createSnapshot(thread, user, com.devbraid.changethread.entity.SnapshotType.REFRESH, null);
         eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.THREAD_REFRESHED,
                 String.format("Thread refreshed from GitHub — %d commits, %d files",
-                        thread.getCommits() != null ? countJsonArray(thread.getCommits()) : 0,
-                        thread.getChangedFiles() != null ? countJsonArray(thread.getChangedFiles()) : 0),
+                        thread.getCommits() != null ? thread.getCommits().size() : 0,
+                        thread.getChangedFiles() != null ? thread.getChangedFiles().size() : 0),
                 null);
 
         return toResponse(thread);
@@ -229,20 +230,19 @@ public class ChangeThreadService {
             thread.setStatus(com.devbraid.changethread.entity.ThreadStatus.ANALYZING);
         }
 
-        // Serialization failure propagates — GlobalExceptionHandler handles it
-        String riskReport = objectMapper.writeValueAsString(report);
-
         thread.setRiskLevel(overallRisk);
-        thread.setRiskReport(riskReport);
+        thread.setRiskReport(report);
         thread = threadRepository.save(thread);
 
         // Create analysis snapshot and timeline event
         snapshotService.createSnapshot(thread, user, com.devbraid.changethread.entity.SnapshotType.ANALYSIS,
                 String.format("Risk level: %s", overallRisk));
+        // Event metadata is a String — serialize the report for the timeline
+        String riskReportJson = objectMapper.writeValueAsString(report);
         eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.ANALYSIS_RUN,
                 String.format("Risk analysis complete — level: %s, flags: %d",
                         overallRisk, report.get("flags") != null ? ((java.util.List<?>) report.get("flags")).size() : 0),
-                riskReport);
+                riskReportJson);
 
         log.info("Analyzed thread {} — risk level: {}", threadId, overallRisk);
         return toResponse(thread);
@@ -309,17 +309,4 @@ public class ChangeThreadService {
         return response;
     }
 
-    private String serializeToJson(Object obj) throws JsonProcessingException {
-        if (obj == null) return null;
-        return objectMapper.writeValueAsString(obj);
-    }
-
-    private int countJsonArray(String json) {
-        try {
-            var list = objectMapper.readValue(json, java.util.List.class);
-            return list != null ? list.size() : 0;
-        } catch (Exception e) {
-            return 0;
-        }
-    }
 }

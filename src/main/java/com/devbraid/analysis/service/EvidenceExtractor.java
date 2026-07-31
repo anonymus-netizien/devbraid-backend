@@ -1,37 +1,34 @@
 package com.devbraid.analysis.service;
 
-import com.devbraid.analysis.util.JsonParseUtils;
-import lombok.RequiredArgsConstructor;
+import com.devbraid.github.dto.response.ChangedFileDto;
+import com.devbraid.github.dto.response.CommitSummaryDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- * Extracts structured evidence from commits and changed files JSON.
- * Uses shared JsonParseUtils for JSON parsing.
+ * Extracts structured evidence from typed changed-file DTOs — no JSON parsing.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class EvidenceExtractor {
 
-    private final JsonParseUtils jsonParseUtils;
-
-    public Map<String, Object> extract(String commitsJson, String changedFilesJson) {
+    public Map<String, Object> extract(List<CommitSummaryDto> commits, List<ChangedFileDto> changedFiles) {
         Map<String, Object> evidence = new HashMap<>();
 
-        List<Map<String, Object>> files = jsonParseUtils.parseArray(changedFilesJson);
+        List<ChangedFileDto> files = changedFiles != null ? changedFiles : List.of();
 
         List<String> filenames = files.stream()
-                .map(f -> jsonParseUtils.getString(f, "filename"))
-                .filter(java.util.Objects::nonNull)
+                .map(ChangedFileDto::getFilename)
+                .filter(Objects::nonNull)
                 .toList();
 
-        int totalAdditions = files.stream().mapToInt(f -> jsonParseUtils.getInt(f, "additions")).sum();
-        int totalDeletions = files.stream().mapToInt(f -> jsonParseUtils.getInt(f, "deletions")).sum();
+        int totalAdditions = files.stream().mapToInt(ChangedFileDto::getAdditions).sum();
+        int totalDeletions = files.stream().mapToInt(ChangedFileDto::getDeletions).sum();
 
         evidence.put("fileCount", filenames.size());
         evidence.put("totalAdditions", totalAdditions);
