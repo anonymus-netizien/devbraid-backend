@@ -16,17 +16,17 @@ class RiskFlagRulesEnhancedTest {
 
     private RiskFlagRules rules;
 
-    @BeforeEach
-    void setUp() {
-        rules = new RiskFlagRules();
-    }
-
     private static ChangedFileDto file(String name, int add, int del) {
         return new ChangedFileDto(name, "modified", add, del);
     }
 
     private static CommitSummaryDto commit(String message) {
         return new CommitSummaryDto("abc123", message, null);
+    }
+
+    @BeforeEach
+    void setUp() {
+        rules = new RiskFlagRules();
     }
 
     @Test

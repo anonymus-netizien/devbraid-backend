@@ -121,12 +121,13 @@ public class ApiKeyService {
         return HexFormat.of().formatHex(bytes);
     }
 
+    // ponytail: MessageDigest is NOT thread-safe — create per-call (JDK caches internally)
     private String sha256Hex(String input) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(input.getBytes(StandardCharsets.UTF_8)));
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(input.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
+            throw new RuntimeException("SHA-256 not available", e);
         }
     }
 

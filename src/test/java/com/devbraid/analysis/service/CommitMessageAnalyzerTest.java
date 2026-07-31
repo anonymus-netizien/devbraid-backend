@@ -12,13 +12,13 @@ class CommitMessageAnalyzerTest {
 
     private CommitMessageAnalyzer analyzer;
 
+    private static CommitSummaryDto commit(String message) {
+        return new CommitSummaryDto("abc123", message, null);
+    }
+
     @BeforeEach
     void setUp() {
         analyzer = new CommitMessageAnalyzer();
-    }
-
-    private static CommitSummaryDto commit(String message) {
-        return new CommitSummaryDto("abc123", message, null);
     }
 
     @Test

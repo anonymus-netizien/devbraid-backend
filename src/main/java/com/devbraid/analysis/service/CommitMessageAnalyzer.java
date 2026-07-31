@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.Map.entry;
+
 /**
  * Analyzes commit messages to extract intent, semantic tags, and scope.
  * Used to enrich risk analysis and brief generation with commit-level insights.
@@ -44,6 +46,16 @@ public class CommitMessageAnalyzer {
             Pattern.compile("(?i)\\bincompatible\\b"),
             Pattern.compile("(?i)\\bmigrate?d?\\b.*\\bfrom\\b.*\\bto\\b")
     );
+    // ponytail: Map.ofEntries replaces 7 sequential if-else for scope categorization
+    private static final Map<String, String> SCOPE_CATEGORY_MAP = Map.ofEntries(
+            entry("auth", "security"), entry("security", "security"),
+            entry("api", "api"), entry("controller", "api"),
+            entry("db", "data"), entry("repo", "data"), entry("entity", "data"),
+            entry("ui", "ui"), entry("frontend", "ui"), entry("component", "ui"),
+            entry("test", "test"), entry("spec", "test"),
+            entry("config", "config"), entry("env", "config")
+    );
+
     /**
      * Analyze typed commits and extract structured intent — no JSON parsing.
      */
@@ -172,13 +184,11 @@ public class CommitMessageAnalyzer {
     private String categorizeScope(String scope) {
         if (scope == null) return "general";
         String lower = scope.toLowerCase();
-        if (lower.contains("auth") || lower.contains("security")) return "security";
-        if (lower.contains("api") || lower.contains("controller")) return "api";
-        if (lower.contains("db") || lower.contains("repo") || lower.contains("entity")) return "data";
-        if (lower.contains("ui") || lower.contains("frontend") || lower.contains("component")) return "ui";
-        if (lower.contains("test") || lower.contains("spec")) return "test";
-        if (lower.contains("config") || lower.contains("env")) return "config";
-        return "general";
+        return SCOPE_CATEGORY_MAP.entrySet().stream()
+                .filter(e -> lower.contains(e.getKey()))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse("general");
     }
 
     // ── Result DTOs ─────────────────────────────────────────────────

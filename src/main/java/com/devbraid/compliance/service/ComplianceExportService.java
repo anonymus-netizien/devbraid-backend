@@ -152,6 +152,7 @@ public class ComplianceExportService {
         zos.closeEntry();
     }
 
+    // ponytail: MessageDigest is NOT thread-safe — create per-call (JDK caches internally)
     private String sha256Hex(byte[] data) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -162,7 +163,7 @@ public class ComplianceExportService {
             }
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
+            throw new RuntimeException("SHA-256 not available", e);
         }
     }
 

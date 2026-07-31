@@ -114,30 +114,16 @@ class BriefBuilderServiceTest {
     }
 
     @Test
-    @DisplayName("generateBrief() falls back to template when AI is unavailable")
-    void generateBrief_AIFailure_UsesTemplateFallback() throws Exception {
+    @DisplayName("generateBrief() throws RuntimeException when AI is unavailable")
+    void generateBrief_AIFailure_throwsRuntimeException() throws Exception {
         when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
                 .thenReturn(Optional.of(testThread));
         when(promptBuilder.buildBriefPrompt(testThread)).thenReturn("Test prompt");
         when(aiProvider.analyze("Test prompt")).thenThrow(new RuntimeException("API unavailable"));
-        when(promptBuilder.buildTemplateBrief(testThread)).thenReturn("Template content");
-        when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.empty());
-        when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
-        when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
-                .thenAnswer(invocation -> {
-                    BriefResponse r = new BriefResponse();
-                    r.setId(testBrief.getId());
-                    r.setThreadId(testThread.getId());
-                    r.setContent("Template content");
-                    return r;
-                });
 
-        BriefResponse response = briefBuilderService.generateBrief(testUser, testThread.getId());
-
-        assertThat(response).isNotNull();
-        assertThat(response.getContent()).isEqualTo("Template content");
-        verify(aiProvider).analyze("Test prompt");
-        verify(promptBuilder).buildTemplateBrief(testThread);
+        assertThatThrownBy(() -> briefBuilderService.generateBrief(testUser, testThread.getId()))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("AI brief generation failed");
     }
 
     @Test

@@ -12,13 +12,13 @@ class TestCoverageGapDetectorTest {
 
     private TestCoverageGapDetector detector;
 
+    private static ChangedFileDto file(String name, int add, int del) {
+        return new ChangedFileDto(name, "modified", add, del);
+    }
+
     @BeforeEach
     void setUp() {
         detector = new TestCoverageGapDetector();
-    }
-
-    private static ChangedFileDto file(String name, int add, int del) {
-        return new ChangedFileDto(name, "modified", add, del);
     }
 
     @Test

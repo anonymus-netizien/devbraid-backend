@@ -38,14 +38,10 @@ public class IndexingService {
 
     // Language detection patterns
     private static final Map<String, Pattern> LANGUAGE_PATTERNS;
-    // Java-specific patterns
-    private static final Pattern JAVA_CLASS = Pattern.compile(
-            "(?:public|private|protected)?\\s*(?:abstract|final|static)?\\s*(?:class|interface|enum)\\s+(\\w+)"
-    );
+    // Java-specific pattern — used by detectRiskSignals for god-class heuristic
     private static final Pattern JAVA_METHOD = Pattern.compile(
             "(?:public|private|protected)\\s+(?:static\\s+)?(?:final\\s+)?(?:synchronized\\s+)?(\\S+)\\s+(\\w+)\\s*\\("
     );
-    private static final Pattern JAVA_IMPORT = Pattern.compile("^import\\s+(?:static\\s+)?([\\w.]+);", Pattern.MULTILINE);
     // TypeScript/JavaScript patterns
     private static final Pattern TS_CLASS = Pattern.compile(
             "(?:export\\s+)?(?:abstract\\s+)?class\\s+(\\w+)"
@@ -174,11 +170,6 @@ public class IndexingService {
         }
     }
 
-    /**
-     * Parse a single file and extract structural information.
-     * Returns the parsed Java AST (null for non-Java or when regex fallback was used)
-     * so the caller can build the code graph without re-parsing. ponytail: parse once, reuse.
-     */
     private ParsedFile parseFile(CodebaseIndex codebaseIndex, String fileContent) {
         String[] lines = fileContent.split("\n");
         String filePath = lines.length > 0 ? extractFilePath(fileContent) : "unknown";
@@ -209,85 +200,47 @@ public class IndexingService {
         return new ParsedFile(fileIndex, javaAst);
     }
 
-    private record ParsedFile(FileIndex fileIndex, CompilationUnit javaAst) {
-    }
-
     private CompilationUnit parseJavaFile(FileIndex fileIndex, String content) {
-        try {
-            // Strip the leading file-path line (indexing convention: first line is the path)
-            int firstNewline = content.indexOf('\n');
-            String source = firstNewline > 0 ? content.substring(firstNewline + 1) : content;
-            CompilationUnit cu = StaticJavaParser.parse(source);
+        // ponytail: no try/catch — JavaParser failures propagate to GlobalExceptionHandler.
+        // Strip the leading file-path line (indexing convention: first line is the path)
+        int firstNewline = content.indexOf('\n');
+        String source = firstNewline > 0 ? content.substring(firstNewline + 1) : content;
+        CompilationUnit cu = StaticJavaParser.parse(source);
 
-            List<String> classes = new ArrayList<>();
-            List<String> methods = new ArrayList<>();
-
-            cu.accept(new VoidVisitorAdapter<Void>() {
-                @Override
-                public void visit(ClassOrInterfaceDeclaration n, Void arg) {
-                    super.visit(n, arg);
-                    classes.add(n.getNameAsString());
-                }
-
-                @Override
-                public void visit(EnumDeclaration n, Void arg) {
-                    super.visit(n, arg);
-                    classes.add(n.getNameAsString());
-                }
-
-                @Override
-                public void visit(MethodDeclaration n, Void arg) {
-                    super.visit(n, arg);
-                    methods.add(n.getNameAsString() + ":" + n.getTypeAsString());
-                }
-            }, null);
-
-            List<String> imports = new ArrayList<>();
-            cu.getImports().forEach(imp -> imports.add(imp.getNameAsString()));
-
-            fileIndex.setClasses(String.join(",", classes));
-            fileIndex.setClassCount(classes.size());
-            fileIndex.setFunctions(String.join(",", methods));
-            fileIndex.setFunctionCount(methods.size());
-            fileIndex.setImports(String.join(",", imports));
-            return cu;
-        } catch (Exception e) {
-            // ponytail: JavaParser failed (unparseable snippet) — degrade to regex, never throw.
-            // Returns null so no graph is built for this file (consistent with the regex path).
-            log.warn("JavaParser failed for {} — falling back to regex: {}", fileIndex.getFilePath(), e.getMessage());
-            parseJavaFileRegex(fileIndex, content);
-            return null;
-        }
-    }
-
-    /**
-     * Regex fallback for Java extraction (kept for unparseable fragments).
-     * ponytail: regex remains the fallback, JavaParser is the primary path for .java files.
-     */
-    private void parseJavaFileRegex(FileIndex fileIndex, String content) {
         List<String> classes = new ArrayList<>();
-        Matcher classMatcher = JAVA_CLASS.matcher(content);
-        while (classMatcher.find()) {
-            classes.add(classMatcher.group(1));
-        }
-        fileIndex.setClasses(String.join(",", classes));
-        fileIndex.setClassCount(classes.size());
-
         List<String> methods = new ArrayList<>();
-        Matcher methodMatcher = JAVA_METHOD.matcher(content);
-        while (methodMatcher.find()) {
-            methods.add(methodMatcher.group(2) + ":" + methodMatcher.group(1));
-        }
-        fileIndex.setFunctions(String.join(",", methods));
-        fileIndex.setFunctionCount(methods.size());
+
+        cu.accept(new VoidVisitorAdapter<Void>() {
+            @Override
+            public void visit(ClassOrInterfaceDeclaration n, Void arg) {
+                super.visit(n, arg);
+                classes.add(n.getNameAsString());
+            }
+
+            @Override
+            public void visit(EnumDeclaration n, Void arg) {
+                super.visit(n, arg);
+                classes.add(n.getNameAsString());
+            }
+
+            @Override
+            public void visit(MethodDeclaration n, Void arg) {
+                super.visit(n, arg);
+                methods.add(n.getNameAsString() + ":" + n.getTypeAsString());
+            }
+        }, null);
 
         List<String> imports = new ArrayList<>();
-        Matcher importMatcher = JAVA_IMPORT.matcher(content);
-        while (importMatcher.find()) {
-            imports.add(importMatcher.group(1));
-        }
+        cu.getImports().forEach(imp -> imports.add(imp.getNameAsString()));
+
+        fileIndex.setClasses(String.join(",", classes));
+        fileIndex.setClassCount(classes.size());
+        fileIndex.setFunctions(String.join(",", methods));
+        fileIndex.setFunctionCount(methods.size());
         fileIndex.setImports(String.join(",", imports));
+        return cu;
     }
+
 
     private void parseTsFile(FileIndex fileIndex, String content) {
         List<String> classes = new ArrayList<>();
@@ -483,11 +436,6 @@ public class IndexingService {
         return new DependencyGraphResponse(nodes, edges);
     }
 
-    // ── Graph response DTO ───────────────────────────────────────────
-
-    public record DependencyGraphResponse(List<CodebaseNode> nodes, List<CodebaseEdge> edges) {
-    }
-
     /**
      * Detect risk signals in file content.
      */
@@ -517,6 +465,8 @@ public class IndexingService {
         return signals.isEmpty() ? null : String.join(",", signals);
     }
 
+    // ── Graph response DTO ───────────────────────────────────────────
+
     private String detectLanguage(String filePath) {
         for (Map.Entry<String, Pattern> entry : LANGUAGE_PATTERNS.entrySet()) {
             if (entry.getValue().matcher(filePath).find()) {
@@ -536,8 +486,6 @@ public class IndexingService {
         return lastDot > 0 ? filePath.substring(lastDot + 1).toLowerCase() : "unknown";
     }
 
-    // ── Query methods ───────────────────────────────────────────────
-
     @Transactional(readOnly = true)
     public Optional<CodebaseIndex> getIndex(UUID indexId) {
         return codebaseIndexRepository.findById(indexId);
@@ -547,6 +495,8 @@ public class IndexingService {
     public List<CodebaseIndex> listIndexesByUser(User user) {
         return codebaseIndexRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
     }
+
+    // ── Query methods ───────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public List<FileIndex> getFilesByIndex(UUID indexId) {
@@ -561,5 +511,11 @@ public class IndexingService {
     @Transactional(readOnly = true)
     public List<FileIndex> getFilesByLanguage(UUID indexId, String language) {
         return fileIndexRepository.findByIndexIdAndLanguage(indexId, language);
+    }
+
+    private record ParsedFile(FileIndex fileIndex, CompilationUnit javaAst) {
+    }
+
+    public record DependencyGraphResponse(List<CodebaseNode> nodes, List<CodebaseEdge> edges) {
     }
 }

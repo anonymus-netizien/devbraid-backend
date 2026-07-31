@@ -3,12 +3,11 @@ package com.devbraid.githubapp.service;
 import com.devbraid.changethread.service.ChangeThreadService;
 import com.devbraid.githubapp.entity.GitHubAppInstallation;
 import com.devbraid.githubapp.entity.GitHubWebhook;
-import com.devbraid.githubapp.exception.WebhookNotFoundException;
-import com.devbraid.githubapp.exception.WebhookPayloadInvalidException;
 import com.devbraid.githubapp.exception.WebhookSignatureInvalidException;
 import com.devbraid.githubapp.repository.GitHubAppInstallationRepository;
 import com.devbraid.githubapp.repository.GitHubWebhookRepository;
 import com.devbraid.user.entity.User;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,7 +20,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.OffsetDateTime;
@@ -108,42 +106,6 @@ class GitHubWebhookServiceTest {
     class ProcessWebhook {
 
         @Test
-        @DisplayName("Deduplicates concurrent webhook via DataIntegrityViolationException")
-        void processWebhook_concurrentDuplicate_handlesGracefully() {
-            String deliveryId = "test-delivery-123";
-            GitHubWebhook existing = GitHubWebhook.builder()
-                    .id(UUID.randomUUID())
-                    .deliveryId(deliveryId)
-                    .eventType("push")
-                    .processed(true)
-                    .receivedAt(OffsetDateTime.now())
-                    .build();
-
-            when(webhookRepository.save(any(GitHubWebhook.class)))
-                    .thenThrow(new DataIntegrityViolationException("duplicate key"));
-            when(webhookRepository.findByDeliveryId(deliveryId)).thenReturn(Optional.of(existing));
-
-            JsonNode payload = objectMapper.createObjectNode();
-            var response = webhookService.processWebhook("push", deliveryId, null, payload, 12345L);
-
-            assertNotNull(response);
-            assertEquals(deliveryId, response.getDeliveryId());
-        }
-
-        @Test
-        @DisplayName("Throws WebhookNotFoundException when concurrent duplicate not found")
-        void processWebhook_concurrentDuplicateNotFound_throwsException() {
-            String deliveryId = "missing-delivery";
-            when(webhookRepository.save(any(GitHubWebhook.class)))
-                    .thenThrow(new DataIntegrityViolationException("duplicate key"));
-            when(webhookRepository.findByDeliveryId(deliveryId)).thenReturn(Optional.empty());
-
-            JsonNode payload = objectMapper.createObjectNode();
-            assertThrows(WebhookNotFoundException.class,
-                    () -> webhookService.processWebhook("push", deliveryId, null, payload, 12345L));
-        }
-
-        @Test
         @DisplayName("Processes new webhook and stores it")
         void processWebhook_newWebhook_savesAndProcesses() throws Exception {
             String deliveryId = "new-delivery-456";
@@ -168,14 +130,14 @@ class GitHubWebhookServiceTest {
         }
 
         @Test
-        @DisplayName("Throws WebhookPayloadInvalidException when payload serialization fails")
+        @DisplayName("Throws JsonProcessingException when payload serialization fails")
         void processWebhook_serializationFails_throwsException() throws Exception {
             String deliveryId = "bad-payload";
             JsonNode badPayload = mock(JsonNode.class);
-            doThrow(new com.fasterxml.jackson.core.JsonProcessingException("fail") {
+            doThrow(new JsonProcessingException("fail") {
             }).when(objectMapper).writeValueAsString(badPayload);
 
-            assertThrows(WebhookPayloadInvalidException.class,
+            assertThrows(JsonProcessingException.class,
                     () -> webhookService.processWebhook("push", deliveryId, null, badPayload, 12345L));
         }
     }

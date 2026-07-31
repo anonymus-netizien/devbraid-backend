@@ -1,6 +1,5 @@
 package com.devbraid.indexing.service;
 
-import com.devbraid.indexing.entity.CodebaseEdge;
 import com.devbraid.indexing.entity.CodebaseIndex;
 import com.devbraid.indexing.entity.CodebaseNode;
 import com.devbraid.indexing.entity.FileIndex;
@@ -491,8 +490,10 @@ class IndexingServiceTest {
     class RiskSignalTests {
 
         @Test
-        @DisplayName("detects large file risk signal")
-        void startIndexing_largeFile_flagsLargeFile() {
+        @DisplayName("large file with invalid Java syntax fails the run (no regex fallback)")
+        void startIndexing_largeFile_failsRun() {
+            // ponytail: the old regex fallback would have indexed this file and flagged large_file.
+            // Now that regex is removed, unparseable Java fails the entire run.
             StringBuilder sb = new StringBuilder("src/main/java/com/app/Huge.java\n");
             for (int i = 0; i < 310; i++) {
                 sb.append("    line ").append(i).append("\n");
@@ -501,9 +502,15 @@ class IndexingServiceTest {
 
             indexingService.startIndexing(testIndex.getId(), List.of(sb.toString()));
 
-            ArgumentCaptor<FileIndex> captor = ArgumentCaptor.forClass(FileIndex.class);
-            verify(fileIndexRepository).save(captor.capture());
-            assertTrue(captor.getValue().getRiskSignals().contains("large_file"));
+            // Entire run fails — no files indexed
+            verify(fileIndexRepository, never()).save(any(FileIndex.class));
+
+            // Index status should be FAILED
+            ArgumentCaptor<CodebaseIndex> captor = ArgumentCaptor.forClass(CodebaseIndex.class);
+            verify(codebaseIndexRepository, atLeastOnce()).save(captor.capture());
+            assertTrue(captor.getAllValues().stream()
+                    .anyMatch(i -> "FAILED".equals(i.getStatus())),
+                    "index status should be FAILED after unparseable Java");
         }
 
         @Test
@@ -571,9 +578,10 @@ class IndexingServiceTest {
         }
 
         @Test
-        @DisplayName("regex-fallback Java file builds no graph instead of failing the run")
-        void startIndexing_unparseableJava_skipsGraph() {
-            // Contains a syntax error JavaParser cannot parse (unclosed brace + stray token).
+        @DisplayName("unparseable Java file fails the entire indexing run (no regex fallback)")
+        void startIndexing_unparseableJava_failsRun() {
+            // ponytail: regex fallback removed — JavaParser failure propagates to startIndexing's
+            // outer catch, which sets status=FAILED. No try/catch in service layer.
             String fileContent = "src/main/java/com/app/Broken.java\n" +
                     "public class Broken {\n" +
                     "    public void ok() {}\n" +
@@ -584,10 +592,17 @@ class IndexingServiceTest {
 
             indexingService.startIndexing(testIndex.getId(), List.of(fileContent));
 
-            verify(fileIndexRepository).save(any(FileIndex.class));
-            // Graph persistence must be skipped for the regex-fallback file — no nodes, no edges.
+            // The entire run fails — no files indexed, no graph built
+            verify(fileIndexRepository, never()).save(any(FileIndex.class));
             verify(codebaseNodeRepository, never()).saveAll(any());
             verify(codebaseEdgeRepository, never()).saveAll(any());
+
+            // Index status should be FAILED
+            ArgumentCaptor<CodebaseIndex> captor = ArgumentCaptor.forClass(CodebaseIndex.class);
+            verify(codebaseIndexRepository, atLeastOnce()).save(captor.capture());
+            assertTrue(captor.getAllValues().stream()
+                    .anyMatch(i -> "FAILED".equals(i.getStatus())),
+                    "index status should be FAILED after unparseable Java");
         }
 
         @Test

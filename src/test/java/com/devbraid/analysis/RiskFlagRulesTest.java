@@ -21,13 +21,13 @@ class RiskFlagRulesTest {
 
     private RiskFlagRules riskFlagRules;
 
+    private static ChangedFileDto file(String name, int add, int del) {
+        return new ChangedFileDto(name, "modified", add, del);
+    }
+
     @BeforeEach
     void setUp() {
         riskFlagRules = new RiskFlagRules();
-    }
-
-    private static ChangedFileDto file(String name, int add, int del) {
-        return new ChangedFileDto(name, "modified", add, del);
     }
 
     @Test

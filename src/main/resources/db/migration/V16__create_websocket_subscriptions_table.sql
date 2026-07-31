@@ -3,11 +3,11 @@
 
 CREATE TABLE websocket_subscriptions
 (
-    id            UUID PRIMARY KEY       DEFAULT gen_random_uuid(),
-    user_id       UUID          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    session_id    VARCHAR(128)  NOT NULL,
-    destination   VARCHAR(255)  NOT NULL,
-    subscribed_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    id            UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
+    user_id       UUID         NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    session_id    VARCHAR(128) NOT NULL,
+    destination   VARCHAR(255) NOT NULL,
+    subscribed_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_ws_sub_user ON websocket_subscriptions (user_id);

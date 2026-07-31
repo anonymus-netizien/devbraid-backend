@@ -52,55 +52,37 @@ public class RiskAnalysisService {
         report.put("aiAnalyzed", false);
 
         // Phase 2: Commit message analysis (always runs)
-        try {
-            var commitAnalysis = commitMessageAnalyzer.analyzeCommits(commits);
-            report.put("commitAnalysis", Map.of(
-                    "intentCounts", commitAnalysis.intentCounts(),
-                    "hasBreakingChange", commitAnalysis.hasBreakingChange(),
-                    "breakingChanges", commitAnalysis.breakingChanges(),
-                    "insightCount", commitAnalysis.insights().size()
-            ));
-            List<String> commitRiskIndicators = commitMessageAnalyzer.getRiskIndicators(commitAnalysis);
-            if (!commitRiskIndicators.isEmpty()) {
-                report.put("commitRiskIndicators", commitRiskIndicators);
-            }
-        } catch (Exception e) {
-            log.warn("Commit analysis failed: {}", e.getMessage());
+        var commitAnalysis = commitMessageAnalyzer.analyzeCommits(commits);
+        report.put("commitAnalysis", Map.of(
+                "intentCounts", commitAnalysis.intentCounts(),
+                "hasBreakingChange", commitAnalysis.hasBreakingChange(),
+                "breakingChanges", commitAnalysis.breakingChanges(),
+                "insightCount", commitAnalysis.insights().size()
+        ));
+        List<String> commitRiskIndicators = commitMessageAnalyzer.getRiskIndicators(commitAnalysis);
+        if (!commitRiskIndicators.isEmpty()) {
+            report.put("commitRiskIndicators", commitRiskIndicators);
         }
 
         // Phase 3: Test coverage gap detection (always runs)
-        try {
-            var testGaps = testCoverageGapDetector.analyzeTestCoverage(changedFiles);
-            report.put("testCoverage", Map.of(
-                    "productionFiles", testGaps.productionFileCount(),
-                    "testFiles", testGaps.testFileCount(),
-                    "highRiskUntested", testGaps.highRiskUntestedFiles(),
-                    "recommendations", testGaps.recommendations()
-            ));
-        } catch (Exception e) {
-            log.warn("Test coverage analysis failed: {}", e.getMessage());
-        }
+        var testGaps = testCoverageGapDetector.analyzeTestCoverage(changedFiles);
+        report.put("testCoverage", Map.of(
+                "productionFiles", testGaps.productionFileCount(),
+                "testFiles", testGaps.testFileCount(),
+                "highRiskUntested", testGaps.highRiskUntestedFiles(),
+                "recommendations", testGaps.recommendations()
+        ));
 
         // Phase 4: Auto-generated decision note suggestions (always runs)
-        try {
-            var suggestedNotes = autoDecisionNotes.suggestNotes(commits, changedFiles);
-            report.put("suggestedNotes", suggestedNotes.stream()
-                    .map(n -> Map.of("category", n.category(), "content", n.content(), "source", n.source().name()))
-                    .toList());
-        } catch (Exception e) {
-            log.warn("Auto decision notes generation failed: {}", e.getMessage());
-        }
+        var suggestedNotes = autoDecisionNotes.suggestNotes(commits, changedFiles);
+        report.put("suggestedNotes", suggestedNotes.stream()
+                .map(n -> Map.of("category", n.category(), "content", n.content(), "source", n.source().name()))
+                .toList());
 
-        // Phase 5: AI analysis — gracefully degrade if unavailable
-        try {
-            String aiResult = aiProvider.analyze(promptBuilder.buildAnalysisPrompt(commits, changedFiles, flags));
-            report.put("aiAnalysis", aiResult);
-            report.put("aiAnalyzed", true);
-        } catch (Exception e) {
-            log.warn("AI analysis unavailable, using deterministic-only results: {}", e.getMessage());
-            report.put("aiAnalyzed", false);
-            report.put("aiError", e.getMessage());
-        }
+        // Phase 5: AI analysis — all exceptions propagate to GlobalExceptionHandler
+        String aiResult = aiProvider.analyze(promptBuilder.buildAnalysisPrompt(commits, changedFiles, flags));
+        report.put("aiAnalysis", aiResult);
+        report.put("aiAnalyzed", true);
 
         return report;
     }

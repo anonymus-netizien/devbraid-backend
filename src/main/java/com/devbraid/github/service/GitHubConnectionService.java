@@ -114,13 +114,9 @@ public class GitHubConnectionService {
         }
 
         GitHubConnection connection = connectionOpt.get();
-        // ponytail: specific catch — status endpoint degrades gracefully for invalid token
-        try {
-            String decryptedPat = patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
-            gitHubApiClient.validateToken(decryptedPat);
-        } catch (GitHubTokenInvalidException e) {
-            throw new GitHubTokenExpiredException("GitHub token expired or invalid");
-        }
+        // ponytail: no try/catch — GitHubTokenInvalidException propagates to GlobalExceptionHandler (401)
+        String decryptedPat = patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
+        gitHubApiClient.validateToken(decryptedPat);
         return GitHubStatusResponse.from(connection, true);
     }
 
@@ -141,13 +137,9 @@ public class GitHubConnectionService {
         }
 
         GitHubConnection connection = connectionOpt.get();
-        // ponytail: same pattern as getStatus — graceful degradation on login
-        try {
-            String decryptedPat = patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
-            gitHubApiClient.validateToken(decryptedPat);
-        } catch (GitHubTokenInvalidException e) {
-            throw new GitHubTokenExpiredException("GitHub token expired or invalid");
-        }
+        // ponytail: no try/catch — GitHubTokenInvalidException propagates to GlobalExceptionHandler (401)
+        String decryptedPat = patEncryptor.decrypt(connection.getEncryptedPat(), connection.getIv());
+        gitHubApiClient.validateToken(decryptedPat);
         return GitHubStatusResponse.from(connection, true);
     }
 

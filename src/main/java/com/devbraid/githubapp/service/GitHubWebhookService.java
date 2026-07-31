@@ -7,7 +7,6 @@ import com.devbraid.githubapp.entity.GitHubAppInstallation;
 import com.devbraid.githubapp.entity.GitHubWebhook;
 import com.devbraid.githubapp.exception.WebhookNotFoundException;
 import com.devbraid.githubapp.exception.WebhookPayloadInvalidException;
-import com.devbraid.githubapp.exception.WebhookProcessingException;
 import com.devbraid.githubapp.exception.WebhookSignatureInvalidException;
 import com.devbraid.githubapp.repository.GitHubAppInstallationRepository;
 import com.devbraid.githubapp.repository.GitHubWebhookRepository;
@@ -18,7 +17,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,21 +64,15 @@ public class GitHubWebhookService {
             return false;
         }
 
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKeySpec = new SecretKeySpec(
-                    webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-            mac.init(secretKeySpec);
-            byte[] expectedSignature = mac.doFinal(payload);
-            String expectedHex = "sha256=" + HexFormat.of().formatHex(expectedSignature);
+        // ponytail: extract HMAC computation to helper — no try/catch in service layer
+        Mac mac = createHmac();
+        byte[] expectedSignature = mac.doFinal(payload);
+        String expectedHex = "sha256=" + HexFormat.of().formatHex(expectedSignature);
 
-            // Constant-time comparison to prevent timing attacks
-            return MessageDigest.isEqual(
-                    expectedHex.getBytes(StandardCharsets.UTF_8),
-                    signature.getBytes(StandardCharsets.UTF_8));
-        } catch (GeneralSecurityException e) {
-            throw new WebhookSignatureInvalidException("Signature verification failed: " + e.getMessage());
-        }
+        // Constant-time comparison to prevent timing attacks
+        return MessageDigest.isEqual(
+                expectedHex.getBytes(StandardCharsets.UTF_8),
+                signature.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -99,27 +91,18 @@ public class GitHubWebhookService {
     @Transactional
     public WebhookResponse processWebhook(String eventType, String deliveryId,
                                           String action, JsonNode payload,
-                                          Long installationId) {
-        // Store the raw webhook event — UNIQUE constraint on delivery_id handles dedup
-        // Concurrent duplicates are caught by DataIntegrityViolationException below
-        GitHubWebhook webhook;
-        try {
-            webhook = GitHubWebhook.builder()
-                    .installationId(installationId)
-                    .eventType(eventType)
-                    .action(action)
-                    .deliveryId(deliveryId)
-                    .payload(serializePayload(payload))
-                    .processed(false)
-                    .build();
-            webhook = webhookRepository.save(webhook);
-        } catch (DataIntegrityViolationException e) {
-            log.info("Concurrent duplicate delivery {} — fetching existing", deliveryId);
-            return webhookRepository.findByDeliveryId(deliveryId)
-                    .map(this::toResponse)
-                    .orElseThrow(() -> new WebhookNotFoundException(
-                            "Duplicate delivery " + deliveryId + " not found after constraint violation"));
-        }
+                                          Long installationId) throws JsonProcessingException {
+        // ponytail: no try/catch — checked exceptions propagate to GlobalExceptionHandler.
+        // UNIQUE constraint on delivery_id handles dedup; concurrent duplicates get 409 Conflict.
+        GitHubWebhook webhook = GitHubWebhook.builder()
+                .installationId(installationId)
+                .eventType(eventType)
+                .action(action)
+                .deliveryId(deliveryId)
+                .payload(objectMapper.writeValueAsString(payload))
+                .processed(false)
+                .build();
+        webhook = webhookRepository.save(webhook);
 
         log.info("Received webhook: event={}, action={}, delivery={}", eventType, action, deliveryId);
 
@@ -183,12 +166,9 @@ public class GitHubWebhookService {
                 description != null ? description : ""
         );
 
-        try {
-            var threadResponse = changeThreadService.createThread(user, request);
-            log.info("Auto-created thread {} for PR #{} on {}", threadResponse.getId(), prNumber, repoFullName);
-        } catch (Exception e) {
-            throw new WebhookProcessingException("Failed to create thread for PR #" + prNumber, e);
-        }
+        // ponytail: no try/catch — thread creation failures propagate to GlobalExceptionHandler
+        var threadResponse = changeThreadService.createThread(user, request);
+        log.info("Auto-created thread {} for PR #{} on {}", threadResponse.getId(), prNumber, repoFullName);
     }
 
     /**
@@ -270,11 +250,21 @@ public class GitHubWebhookService {
      *
      * @throws WebhookPayloadInvalidException if serialization fails
      */
-    private String serializePayload(JsonNode payload) {
+    // ponytail: no try/catch — JsonProcessingException propagates to GlobalExceptionHandler (400)
+    private String serializePayload(JsonNode payload) throws JsonProcessingException {
+        return objectMapper.writeValueAsString(payload);
+    }
+
+    // ponytail: HMAC initialization extracted to helper — checked exception wrapped once at the boundary
+    private Mac createHmac() {
         try {
-            return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException e) {
-            throw new WebhookPayloadInvalidException("Failed to serialize webhook payload", e);
+            Mac mac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(
+                    webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKeySpec);
+            return mac;
+        } catch (GeneralSecurityException e) {
+            throw new WebhookSignatureInvalidException("HMAC initialization failed: " + e.getMessage());
         }
     }
 

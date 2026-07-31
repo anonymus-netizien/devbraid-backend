@@ -20,13 +20,13 @@ class EvidenceExtractorTest {
 
     private EvidenceExtractor evidenceExtractor;
 
+    private static ChangedFileDto file(String name, int add, int del) {
+        return new ChangedFileDto(name, "modified", add, del);
+    }
+
     @BeforeEach
     void setUp() {
         evidenceExtractor = new EvidenceExtractor();
-    }
-
-    private static ChangedFileDto file(String name, int add, int del) {
-        return new ChangedFileDto(name, "modified", add, del);
     }
 
     @Test

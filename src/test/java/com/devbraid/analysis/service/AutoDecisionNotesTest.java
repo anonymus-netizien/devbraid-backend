@@ -14,17 +14,17 @@ class AutoDecisionNotesTest {
 
     private AutoDecisionNotes autoDecisionNotes;
 
-    @BeforeEach
-    void setUp() {
-        autoDecisionNotes = new AutoDecisionNotes();
-    }
-
     private static ChangedFileDto file(String name, int add, int del) {
         return new ChangedFileDto(name, "modified", add, del);
     }
 
     private static CommitSummaryDto commit(String message) {
         return new CommitSummaryDto("abc123", message, null);
+    }
+
+    @BeforeEach
+    void setUp() {
+        autoDecisionNotes = new AutoDecisionNotes();
     }
 
     @Test

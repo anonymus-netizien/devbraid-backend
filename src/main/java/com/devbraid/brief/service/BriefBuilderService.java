@@ -46,15 +46,16 @@ public class BriefBuilderService {
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
 
+        // ponytail: no try/catch — AI failures propagate as RuntimeException to GlobalExceptionHandler.
+        // Citation/inference marker check: if AI output lacks evidence markers, use template.
         String content;
         try {
             content = aiProvider.analyze(promptBuilder.buildBriefPrompt(thread));
-            if (!isEvidenceBacked(content)) {
-                log.warn("AI brief output missing citation/inference markers — using template fallback");
-                content = promptBuilder.buildTemplateBrief(thread);
-            }
         } catch (Exception e) {
-            log.warn("AI brief generation unavailable, using template fallback: {}", e.getMessage());
+            throw new RuntimeException("AI brief generation failed", e);
+        }
+        if (!isEvidenceBacked(content)) {
+            log.warn("AI brief output missing citation/inference markers — using template fallback");
             content = promptBuilder.buildTemplateBrief(thread);
         }
 

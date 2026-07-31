@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -20,18 +19,15 @@ public class ThreadStatusEventPublisher {
 
     private final SimpMessagingTemplate messagingTemplate;
 
+    // ponytail: no try/catch — WebSocket failures propagate to GlobalExceptionHandler.
+    // Simple record payload avoids SimpMessagingTemplate.convertAndSend overload ambiguity.
     public void publishStatus(UUID threadId, ThreadStatus status) {
-        try {
-            // ponytail: simple record payload avoids SimpMessagingTemplate.convertAndSend overload ambiguity
-            messagingTemplate.convertAndSend(
-                    "/topic/threads/" + threadId,
-                    new StatusEvent("THREAD_STATUS", threadId, status.name())
-            );
-        } catch (Exception e) {
-            // ponytail: a failed broadcast must never break the REST call that caused it
-            log.warn("Failed to publish status for thread {}: {}", threadId, e.getMessage());
-        }
+        messagingTemplate.convertAndSend(
+                "/topic/threads/" + threadId,
+                new StatusEvent("THREAD_STATUS", threadId, status.name())
+        );
     }
 
-    private record StatusEvent(String type, UUID threadId, String status) {}
+    private record StatusEvent(String type, UUID threadId, String status) {
+    }
 }
