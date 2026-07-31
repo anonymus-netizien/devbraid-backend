@@ -160,6 +160,9 @@ public class GlobalExceptionHandler {
         );
     }
 
+    // Kept for Spring Security method-security (@PreAuthorize/@Secured) and future RBAC.
+    // ponytail: no service currently throws AccessDeniedException directly — service-layer
+    // ownership checks use query-level lookups that surface as NotFound exceptions instead.
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<?>> handleAccessDenied(AccessDeniedException ex) {
         log.warn("GlobalExceptionHandler :: Access denied: {}", ex.getMessage());

@@ -14,6 +14,8 @@ public interface ChangeBriefRepository extends JpaRepository<ChangeBrief, UUID> 
 
     Optional<ChangeBrief> findByThreadId(UUID threadId);
 
+    Optional<ChangeBrief> findByIdAndThread_UserId(UUID id, UUID userId);
+
     @Query(value = "SELECT b FROM ChangeBrief b JOIN FETCH b.thread t WHERE t.user.id = :userId ORDER BY b.createdAt DESC",
             countQuery = "SELECT count(b) FROM ChangeBrief b WHERE b.thread.user.id = :userId")
     Page<ChangeBrief> findAllByUserId(@Param("userId") UUID userId, Pageable pageable);
