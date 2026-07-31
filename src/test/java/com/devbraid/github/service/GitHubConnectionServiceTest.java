@@ -11,7 +11,6 @@ import com.devbraid.github.entity.GitHubConnection;
 import com.devbraid.github.exception.GitHubAlreadyConnectedException;
 import com.devbraid.github.exception.GitHubNotConnectedException;
 import com.devbraid.github.exception.GitHubTokenInvalidException;
-import com.devbraid.github.exception.GitHubTokenInvalidException;
 import com.devbraid.github.repository.GitHubConnectionRepository;
 import com.devbraid.github.util.PatEncryptor;
 import com.devbraid.user.entity.User;

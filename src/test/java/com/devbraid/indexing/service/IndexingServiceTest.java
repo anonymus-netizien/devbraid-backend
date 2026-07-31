@@ -509,7 +509,7 @@ class IndexingServiceTest {
             ArgumentCaptor<CodebaseIndex> captor = ArgumentCaptor.forClass(CodebaseIndex.class);
             verify(codebaseIndexRepository, atLeastOnce()).save(captor.capture());
             assertTrue(captor.getAllValues().stream()
-                    .anyMatch(i -> "FAILED".equals(i.getStatus())),
+                            .anyMatch(i -> "FAILED".equals(i.getStatus())),
                     "index status should be FAILED after unparseable Java");
         }
 
@@ -601,7 +601,7 @@ class IndexingServiceTest {
             ArgumentCaptor<CodebaseIndex> captor = ArgumentCaptor.forClass(CodebaseIndex.class);
             verify(codebaseIndexRepository, atLeastOnce()).save(captor.capture());
             assertTrue(captor.getAllValues().stream()
-                    .anyMatch(i -> "FAILED".equals(i.getStatus())),
+                            .anyMatch(i -> "FAILED".equals(i.getStatus())),
                     "index status should be FAILED after unparseable Java");
         }
 
