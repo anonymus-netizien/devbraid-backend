@@ -135,6 +135,12 @@
             <artifactId>javaparser-core</artifactId>
             <version>3.26.4</version>
         </dependency>
+
+        <!-- STOMP over WebSocket for real-time thread status updates -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

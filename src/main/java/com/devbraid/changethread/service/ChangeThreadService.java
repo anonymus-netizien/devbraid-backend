@@ -3,6 +3,7 @@ package com.devbraid.changethread.service;
 import com.devbraid.analysis.RiskLevel;
 import com.devbraid.analysis.service.RiskAnalysisService;
 import com.devbraid.changethread.dto.request.CreateThreadRequest;
+import com.devbraid.changethread.event.ThreadStatusEventPublisher;
 import com.devbraid.changethread.dto.request.UpdateThreadRequest;
 import com.devbraid.changethread.dto.response.NoteResponse;
 import com.devbraid.changethread.dto.response.ThreadResponse;
@@ -50,6 +51,7 @@ public class ChangeThreadService {
     private final RiskAnalysisService riskAnalysisService;
     private final ThreadSnapshotService snapshotService;
     private final ThreadEventService eventService;
+    private final ThreadStatusEventPublisher statusEventPublisher;
     private final ModelMapper generalModelMapper;
 
     /**
@@ -233,6 +235,9 @@ public class ChangeThreadService {
         thread.setRiskLevel(overallRisk);
         thread.setRiskReport(report);
         thread = threadRepository.save(thread);
+
+        // Live status broadcast to subscribed UIs
+        statusEventPublisher.publishStatus(thread.getId(), thread.getStatus());
 
         // Create analysis snapshot and timeline event
         snapshotService.createSnapshot(thread, user, com.devbraid.changethread.entity.SnapshotType.ANALYSIS,

@@ -1,5 +1,6 @@
 package com.devbraid.common.exception;
 
+import com.devbraid.apikey.service.ApiKeyNotFoundException;
 import com.devbraid.changethread.exception.BriefNotFoundException;
 import com.devbraid.changethread.exception.NoteNotFoundException;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
@@ -158,6 +159,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BriefNotFoundException.class)
     public ResponseEntity<ApiResponse<?>> handleBriefNotFound(BriefNotFoundException ex) {
         log.warn("GlobalExceptionHandler :: Brief not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(ApiKeyNotFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleApiKeyNotFound(ApiKeyNotFoundException ex) {
+        log.warn("GlobalExceptionHandler :: API key not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 ApiResponse.error(ex.getMessage())
         );
