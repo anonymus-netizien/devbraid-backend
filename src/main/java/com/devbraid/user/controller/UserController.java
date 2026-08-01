@@ -1,8 +1,8 @@
 package com.devbraid.user.controller;
 
 import com.devbraid.common.ApiResponse;
-import com.devbraid.user.dto.request.UpdateProfileRequest;
 import com.devbraid.user.dto.request.UpdatePasswordRequest;
+import com.devbraid.user.dto.request.UpdateProfileRequest;
 import com.devbraid.user.dto.response.UserProfileResponse;
 import com.devbraid.user.entity.User;
 import com.devbraid.user.service.UserService;

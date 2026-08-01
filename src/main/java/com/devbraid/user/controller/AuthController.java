@@ -6,8 +6,6 @@ import com.devbraid.user.dto.request.*;
 import com.devbraid.user.dto.response.LoginResponse;
 import com.devbraid.user.dto.response.OtpSendResponse;
 import com.devbraid.user.dto.response.OtpVerifyResponse;
-import com.devbraid.user.dto.response.UserProfileResponse;
-import com.devbraid.user.entity.User;
 import com.devbraid.user.service.OtpService;
 import com.devbraid.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,8 +15,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
@@ -118,7 +118,6 @@ public class AuthController {
 
         return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", response));
     }
-
 
 
     @PostMapping("/logout")
