@@ -255,15 +255,10 @@ public class GitHubWebhookService {
         return objectMapper.writeValueAsString(payload);
     }
 
-    // ponytail: HMAC initialization extracted to helper — checked exception wrapped once at the boundary
     private Mac createHmac() {
         try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKeySpec = new SecretKeySpec(
-                    webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-            mac.init(secretKeySpec);
-            return mac;
-        } catch (GeneralSecurityException e) {
+            return com.devbraid.security.SecurityUtils.createHmac(webhookSecret, "HmacSHA256");
+        } catch (RuntimeException e) {
             throw new WebhookSignatureInvalidException("HMAC initialization failed: " + e.getMessage());
         }
     }

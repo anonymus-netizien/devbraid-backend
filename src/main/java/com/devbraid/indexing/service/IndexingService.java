@@ -114,60 +114,63 @@ public class IndexingService {
      */
     @Async
     public void startIndexing(UUID indexId, List<String> fileContents) {
-        CodebaseIndex index = codebaseIndexRepository.findById(indexId).orElse(null);
-        if (index == null) {
-            log.error("Codebase index not found: {}", indexId);
-            return;
-        }
+        // ponytail: no try/catch — exceptions propagate to AsyncUncaughtExceptionHandler
+        // which sets index status to FAILED via IndexingAsyncErrorHandler.
+        CodebaseIndex index = codebaseIndexRepository.findById(indexId)
+                .orElseThrow(() -> new IllegalStateException("Codebase index not found: " + indexId));
 
         index.setStatus("INDEXING");
         codebaseIndexRepository.save(index);
 
-        try {
-            // Re-index safety: clear any prior graph rows for this index before rebuilding.
-            // ponytail: delete-then-insert avoids UNIQUE constraint violations on re-runs.
-            codebaseEdgeRepository.deleteByCodebaseIndexId(index.getId());
-            codebaseNodeRepository.deleteByCodebaseIndexId(index.getId());
-            index.setTotalDependencies(0);
+        // Re-index safety: clear any prior graph rows for this index before rebuilding.
+        codebaseEdgeRepository.deleteByCodebaseIndexId(index.getId());
+        codebaseNodeRepository.deleteByCodebaseIndexId(index.getId());
+        index.setTotalDependencies(0);
 
-            int totalFunctions = 0;
-            int totalClasses = 0;
-            int indexedFiles = 0;
+        int totalFunctions = 0;
+        int totalClasses = 0;
+        int indexedFiles = 0;
 
-            for (String fileContent : fileContents) {
-                // Guard against null/blank entries before they can NPE mid-batch (no try/catch here).
-                if (fileContent == null || fileContent.isBlank()) {
-                    continue;
-                }
-                ParsedFile parsed = parseFile(index, fileContent);
-                if (parsed != null && parsed.fileIndex() != null) {
-                    FileIndex fileIndex = parsed.fileIndex();
-                    fileIndexRepository.save(fileIndex);
-                    totalFunctions += fileIndex.getFunctionCount();
-                    totalClasses += fileIndex.getClassCount();
-                    indexedFiles++;
-                    if (parsed.javaAst() != null) {
-                        persistJavaGraph(index, fileIndex, parsed.javaAst());
-                    }
+        for (String fileContent : fileContents) {
+            if (fileContent == null || fileContent.isBlank()) {
+                continue;
+            }
+            ParsedFile parsed = parseFile(index, fileContent);
+            if (parsed != null && parsed.fileIndex() != null) {
+                FileIndex fileIndex = parsed.fileIndex();
+                fileIndexRepository.save(fileIndex);
+                totalFunctions += fileIndex.getFunctionCount();
+                totalClasses += fileIndex.getClassCount();
+                indexedFiles++;
+                if (parsed.javaAst() != null) {
+                    persistJavaGraph(index, fileIndex, parsed.javaAst());
                 }
             }
-
-            index.setTotalFiles(fileContents.size());
-            index.setIndexedFiles(indexedFiles);
-            index.setTotalFunctions(totalFunctions);
-            index.setTotalClasses(totalClasses);
-            index.setStatus("COMPLETED");
-            codebaseIndexRepository.save(index);
-
-            log.info("Indexed {} files for {}/{} — {} functions, {} classes",
-                    indexedFiles, index.getRepository(), index.getBranch(), totalFunctions, totalClasses);
-
-        } catch (Exception e) {
-            index.setStatus("FAILED");
-            index.setErrorMessage(e.getMessage());
-            codebaseIndexRepository.save(index);
-            log.error("Indexing failed for {}/{}: {}", index.getRepository(), index.getBranch(), e.getMessage());
         }
+
+        index.setTotalFiles(fileContents.size());
+        index.setIndexedFiles(indexedFiles);
+        index.setTotalFunctions(totalFunctions);
+        index.setTotalClasses(totalClasses);
+        index.setStatus("COMPLETED");
+        codebaseIndexRepository.save(index);
+
+        log.info("Indexed {} files for {}/{} — {} functions, {} classes",
+                indexedFiles, index.getRepository(), index.getBranch(), totalFunctions, totalClasses);
+    }
+
+    /**
+     * Marks an index as FAILED — called by {@link com.devbraid.config.AsyncConfig}
+     * when startIndexing throws. Pass indexId as the first method argument.
+     */
+    @Transactional
+    public void markIndexFailed(UUID indexId, String errorMessage) {
+        codebaseIndexRepository.findById(indexId).ifPresent(index -> {
+            index.setStatus("FAILED");
+            index.setErrorMessage(errorMessage);
+            codebaseIndexRepository.save(index);
+            log.error("Indexing failed for {}/{}: {}", index.getRepository(), index.getBranch(), errorMessage);
+        });
     }
 
     private ParsedFile parseFile(CodebaseIndex codebaseIndex, String fileContent) {

@@ -11,11 +11,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.devbraid.security.SecurityUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -59,6 +58,9 @@ public class ComplianceExportService {
             zos.finish();
             return baos.toByteArray();
         } catch (IOException e) {
+            // ponytail: try-with-resources IOException — propagate as domain exception.
+            // GlobalExceptionHandler does not have a ComplianceExportException handler,
+            // so this falls through to RuntimeException → 500, which is correct for I/O failures.
             throw new ComplianceExportException("Failed to build compliance export", e);
         }
     }
@@ -140,8 +142,8 @@ public class ComplianceExportService {
         Map<String, Object> manifest = new LinkedHashMap<>();
         manifest.put("generatedAt", OffsetDateTime.now(ZoneOffset.UTC).toString());
         manifest.put("entries", List.of(
-                Map.of("file", "audit_logs", "sha256", sha256Hex(auditBytes)),
-                Map.of("file", "threads_summary", "sha256", sha256Hex(threadsBytes))
+                Map.of("file", "audit_logs", "sha256", SecurityUtils.sha256Hex(auditBytes)),
+                Map.of("file", "threads_summary", "sha256", SecurityUtils.sha256Hex(threadsBytes))
         ));
         return objectMapper.writeValueAsBytes(manifest);
     }
@@ -150,21 +152,6 @@ public class ComplianceExportService {
         zos.putNextEntry(new ZipEntry(name));
         zos.write(bytes);
         zos.closeEntry();
-    }
-
-    // ponytail: MessageDigest is NOT thread-safe — create per-call (JDK caches internally)
-    private String sha256Hex(byte[] data) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(data);
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
     }
 
     private String escapeCsv(Object value) {

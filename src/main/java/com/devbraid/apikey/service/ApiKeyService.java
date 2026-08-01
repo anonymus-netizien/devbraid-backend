@@ -11,9 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.devbraid.security.SecurityUtils;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
@@ -121,14 +119,8 @@ public class ApiKeyService {
         return HexFormat.of().formatHex(bytes);
     }
 
-    // ponytail: MessageDigest is NOT thread-safe — create per-call (JDK caches internally)
     private String sha256Hex(String input) {
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(input.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
+        return SecurityUtils.sha256Hex(input);
     }
 
     public record CreatedKey(UUID id, String fullKey, String prefix, Integer rateLimitPerMin) {
