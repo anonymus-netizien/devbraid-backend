@@ -53,8 +53,11 @@ public class IndexingController {
     @GetMapping("/{indexId}/search")
     public ResponseEntity<ApiResponse<List<FileIndex>>> searchFiles(
             @PathVariable UUID indexId,
-            @RequestParam String pattern) {
-        List<FileIndex> files = indexingService.searchFiles(indexId, pattern);
+            @RequestParam(defaultValue = "") String pattern,
+            @RequestParam(required = false) String q) {
+        // Support both 'pattern' and 'q' for consistency with other search endpoints
+        String searchTerm = (q != null && !q.isBlank()) ? q : pattern;
+        List<FileIndex> files = indexingService.searchFiles(indexId, searchTerm);
         return ResponseEntity.ok(ApiResponse.success("Search results", files));
     }
 

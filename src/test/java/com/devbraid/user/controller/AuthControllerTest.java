@@ -180,41 +180,8 @@ class AuthControllerTest {
         verify(userService).login(EMAIL, PASSWORD);
     }
 
-    @Test
-    @DisplayName("GET /api/v1/auth/me returns 200 OK with user profile")
-    void me_Returns200WithProfile() throws Exception {
-        User principal = User.builder()
-                .id(USER_ID)
-                .fullName(FULL_NAME)
-                .email(EMAIL)
-                .build();
-
-        SecurityContextHolder.getContext().setAuthentication(
-                new TestingAuthenticationToken(principal, null, "ROLE_DEVELOPER"));
-
-        UserProfileResponse profile = UserProfileResponse.builder()
-                .id(USER_ID)
-                .fullName(FULL_NAME)
-                .email(EMAIL)
-                .role("DEVELOPER")
-                .createdAt(OffsetDateTime.now())
-                .build();
-
-        when(userService.getUserProfile(USER_ID.toString())).thenReturn(profile);
-
-        mockMvc.perform(get("/api/v1/auth/me"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("User profile retrieved"))
-                .andExpect(jsonPath("$.data.id").value(USER_ID.toString()))
-                .andExpect(jsonPath("$.data.fullName").value(FULL_NAME))
-                .andExpect(jsonPath("$.data.email").value(EMAIL))
-                .andExpect(jsonPath("$.data.role").value("DEVELOPER"))
-                .andExpect(jsonPath("$.data.createdAt").exists());
-
-        verify(userService).getUserProfile(USER_ID.toString());
-        SecurityContextHolder.clearContext();
-    }
+    // NOTE: GET /auth/me test removed — endpoint moved to UserController /api/v1/user/profile
+    // See UserControllerTest for profile endpoint tests
 
     @Test
     @DisplayName("POST /api/v1/auth/refresh returns 200 OK with new accessToken in body and new refreshToken in httpOnly cookie")

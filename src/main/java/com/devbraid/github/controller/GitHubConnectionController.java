@@ -69,4 +69,17 @@ public class GitHubConnectionController {
         List<BranchDto> branches = gitHubConnectionService.listBranches(user, owner, repo);
         return ResponseEntity.ok(ApiResponse.success("Branches retrieved", branches));
     }
+
+    /**
+     * Query-param overload for listBranches — improves API usability for frontend consumers.
+     */
+    @GetMapping("/branches")
+    public ResponseEntity<ApiResponse<List<BranchDto>>> listBranchesByQuery(
+            @RequestParam String owner,
+            @RequestParam String repo,
+            @AuthenticationPrincipal User user) {
+        log.info("Listing branches for {}/{} by user {} (query params)", owner, repo, user.getEmail());
+        List<BranchDto> branches = gitHubConnectionService.listBranches(user, owner, repo);
+        return ResponseEntity.ok(ApiResponse.success("Branches retrieved", branches));
+    }
 }
