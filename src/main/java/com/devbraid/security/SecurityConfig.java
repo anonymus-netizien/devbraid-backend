@@ -44,12 +44,15 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
+                                // Auth endpoints — public
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/refresh",
                                 "/api/v1/auth/logout",
                                 "/api/v1/auth/otp/send",
-                                "/api/v1/auth/otp/verify"
+                                "/api/v1/auth/otp/verify",
+                                // GitHub webhooks — unauthenticated (HMAC signature verification)
+                                "/api/v1/webhooks/**"
                         ).permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

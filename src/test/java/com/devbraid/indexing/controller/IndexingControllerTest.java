@@ -100,7 +100,7 @@ class IndexingControllerTest {
         when(indexingService.searchFiles(testIndex.getId(), "User"))
                 .thenReturn(List.of());
 
-        ResponseEntity<?> response = controller.searchFiles(testIndex.getId(), "User");
+        ResponseEntity<?> response = controller.searchFiles(testIndex.getId(), "User", null);
 
         assertEquals(200, response.getStatusCode().value());
     }
