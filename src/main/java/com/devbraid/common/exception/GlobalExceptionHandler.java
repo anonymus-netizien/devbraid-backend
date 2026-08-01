@@ -235,6 +235,17 @@ public class GlobalExceptionHandler {
         );
     }
 
+    // ── Spring resource exceptions ──
+
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleNoResourceFound(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        log.warn("GlobalExceptionHandler :: Resource not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error("Resource not found: " + ex.getResourcePath())
+        );
+    }
+
     // ── Generic exceptions ──
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
