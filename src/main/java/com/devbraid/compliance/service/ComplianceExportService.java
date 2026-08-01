@@ -4,6 +4,7 @@ import com.devbraid.audit.entity.AuditLog;
 import com.devbraid.audit.repository.AuditLogRepository;
 import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
+import com.devbraid.security.SecurityUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +12,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.devbraid.security.SecurityUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -41,10 +41,12 @@ public class ComplianceExportService {
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
-    public byte[] exportZip(OffsetDateTime start, OffsetDateTime end, String format) {
+    public byte[] exportZip(OffsetDateTime start, OffsetDateTime end, String format) throws IOException {
         boolean json = "json".equalsIgnoreCase(format);
         String ext = json ? "json" : "csv";
 
+        // ponytail: no try/catch in service layer — IOException propagates to
+        // GlobalExceptionHandler (400), per the no-try-catch policy.
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              ZipOutputStream zos = new ZipOutputStream(baos)) {
 
@@ -57,11 +59,6 @@ public class ComplianceExportService {
 
             zos.finish();
             return baos.toByteArray();
-        } catch (IOException e) {
-            // ponytail: try-with-resources IOException — propagate as domain exception.
-            // GlobalExceptionHandler does not have a ComplianceExportException handler,
-            // so this falls through to RuntimeException → 500, which is correct for I/O failures.
-            throw new ComplianceExportException("Failed to build compliance export", e);
         }
     }
 

@@ -24,8 +24,10 @@ public class PromptBuilder {
 
     /**
      * Build a prompt for AI-powered brief generation from thread data.
+     *
+     * @throws JsonProcessingException if thread JSON fields cannot be serialized
      */
-    public String buildBriefPrompt(ChangeThread thread) {
+    public String buildBriefPrompt(ChangeThread thread) throws JsonProcessingException {
         StringBuilder prompt = new StringBuilder();
         prompt.append("Generate a structured Change Brief for this code change.\n\n");
         prompt.append("## Thread: ").append(thread.getTitle()).append("\n");
@@ -51,8 +53,10 @@ public class PromptBuilder {
 
     /**
      * Build a template brief (fallback when AI is unavailable).
+     *
+     * @throws JsonProcessingException if thread JSON fields cannot be serialized
      */
-    public String buildTemplateBrief(ChangeThread thread) {
+    public String buildTemplateBrief(ChangeThread thread) throws JsonProcessingException {
         StringBuilder sb = new StringBuilder();
         sb.append("# Change Brief: ").append(thread.getTitle()).append("\n\n");
         sb.append("**Repository:** ").append(thread.getRepositoryFullName()).append("\n");
@@ -77,9 +81,11 @@ public class PromptBuilder {
 
     /**
      * Build a prompt for AI-powered risk analysis from typed commits and changed files.
+     *
+     * @throws JsonProcessingException if commits/changed-files JSON cannot be serialized
      */
     public String buildAnalysisPrompt(List<CommitSummaryDto> commits, List<ChangedFileDto> changedFiles,
-                                      java.util.List<com.devbraid.analysis.dto.RiskFlagDto> flags) {
+                                      java.util.List<com.devbraid.analysis.dto.RiskFlagDto> flags) throws JsonProcessingException {
         StringBuilder prompt = new StringBuilder();
         prompt.append("Analyze these code changes and provide a structured risk assessment.\n\n");
         appendJson(prompt, "Changed files", changedFiles);
@@ -95,9 +101,11 @@ public class PromptBuilder {
     /**
      * Build a prompt for AI-generated decision note suggestions.
      * Sprint 5: enriches diff context with commit analysis for better note generation.
+     *
+     * @throws JsonProcessingException if commits/changed-files JSON cannot be serialized
      */
     public String buildDecisionNotePrompt(List<CommitSummaryDto> commits, List<ChangedFileDto> changedFiles,
-                                          java.util.List<String> riskIndicators) {
+                                          java.util.List<String> riskIndicators) throws JsonProcessingException {
         StringBuilder prompt = new StringBuilder();
         prompt.append("Based on the following code changes, suggest 2-3 decision notes that capture the 'why' behind these changes.\n\n");
         appendJson(prompt, "Changed files", changedFiles);
@@ -121,16 +129,13 @@ public class PromptBuilder {
 
     /**
      * Serialize a typed value to JSON for prompt context.
-     * ponytail: prompt-building helper — if serialization ever fails, degrade to toString.
+     * ponytail: no try/catch — JsonProcessingException (an IOException) propagates to
+     * GlobalExceptionHandler (400) per the no-try-catch-in-services policy.
      */
-    private void appendJson(StringBuilder sb, String heading, Object value) {
+    private void appendJson(StringBuilder sb, String heading, Object value) throws JsonProcessingException {
         if (value == null) return;
         sb.append(heading).append("\n");
-        try {
-            sb.append(objectMapper.writeValueAsString(value));
-        } catch (JsonProcessingException e) {
-            sb.append(value);
-        }
+        sb.append(objectMapper.writeValueAsString(value));
         sb.append("\n\n");
     }
 }

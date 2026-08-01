@@ -5,13 +5,13 @@ import com.devbraid.apikey.entity.ApiUsage;
 import com.devbraid.apikey.repository.ApiKeyRepository;
 import com.devbraid.apikey.repository.ApiUsageRepository;
 import com.devbraid.apikey.security.InMemoryRateLimiter;
+import com.devbraid.security.SecurityUtils;
 import com.devbraid.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.devbraid.security.SecurityUtils;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;

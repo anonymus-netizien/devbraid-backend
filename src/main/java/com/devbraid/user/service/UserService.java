@@ -2,6 +2,7 @@ package com.devbraid.user.service;
 
 import com.devbraid.audit.annotation.AuditAction;
 import com.devbraid.security.JwtTokenProvider;
+import com.devbraid.security.SecurityUtils;
 import com.devbraid.user.dto.request.RegisterRequest;
 import com.devbraid.user.dto.request.UpdatePasswordRequest;
 import com.devbraid.user.dto.request.UpdateProfileRequest;
@@ -22,7 +23,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.devbraid.security.SecurityUtils;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -199,17 +199,12 @@ public class UserService {
         String accessToken = jwtTokenProvider.createAccessToken(userId, user.getEmail(), userRole);
         String refreshToken = jwtTokenProvider.createRefreshToken(userId, user.getEmail(), userRole);
 
-        LoginResponse response = LoginResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .issuedAt(Instant.now())
-                .expiresAt(jwtTokenProvider.getAccessExpiresAt())
-                .fullName(user.getFullName())
-                .email(user.getEmail())
-                .build();
-        response.setUserId(user.getId());
-        response.setRole(userRole);
-        return response;
+        return new LoginResponse(
+                accessToken, refreshToken,
+                Instant.now(), jwtTokenProvider.getAccessExpiresAt(),
+                user.getFullName(), user.getEmail(),
+                user.getId(), userRole
+        );
     }
 
     private void persistRefreshToken(String rawToken, User user) {

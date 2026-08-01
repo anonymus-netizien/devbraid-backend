@@ -15,7 +15,8 @@ import java.util.HexFormat;
  */
 public final class SecurityUtils {
 
-    private SecurityUtils() {}
+    private SecurityUtils() {
+    }
 
     /**
      * SHA-256 hash of a string, returned as lowercase hex.

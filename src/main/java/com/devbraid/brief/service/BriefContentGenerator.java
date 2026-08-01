@@ -36,7 +36,7 @@ public class BriefContentGenerator {
     /**
      * Fallback invoked by the aspect when AI fails.
      */
-    public String buildTemplate(ChangeThread thread) {
+    public String buildTemplate(ChangeThread thread) throws Exception {
         return promptBuilder.buildTemplateBrief(thread);
     }
 

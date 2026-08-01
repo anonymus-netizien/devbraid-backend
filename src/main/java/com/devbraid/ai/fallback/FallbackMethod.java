@@ -16,6 +16,8 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface FallbackMethod {
-    /** Name of the fallback method on the same bean. */
+    /**
+     * Name of the fallback method on the same bean.
+     */
     String method();
 }

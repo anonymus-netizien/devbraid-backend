@@ -137,15 +137,10 @@ class AuthControllerTest {
     @Test
     @DisplayName("POST /api/v1/auth/login returns 200 OK with accessToken in body and refreshToken in httpOnly cookie")
     void login_Returns200WithLoginResponse() throws Exception {
-        LoginResponse loginResponse = LoginResponse.builder()
-                .accessToken(ACCESS_TOKEN)
-                .refreshToken(REFRESH_TOKEN)
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(3600))
-                .email(EMAIL)
-                .userId(USER_ID)
-                .role("DEVELOPER")
-                .build();
+        LoginResponse loginResponse = new LoginResponse(
+                ACCESS_TOKEN, REFRESH_TOKEN,
+                Instant.now(), Instant.now().plusSeconds(3600),
+                FULL_NAME, EMAIL, USER_ID, "DEVELOPER");
 
         when(userService.login(EMAIL, PASSWORD)).thenReturn(loginResponse);
 
@@ -181,15 +176,10 @@ class AuthControllerTest {
     @Test
     @DisplayName("POST /api/v1/auth/refresh returns 200 OK with new accessToken in body and new refreshToken in httpOnly cookie")
     void refresh_Returns200WithNewTokens() throws Exception {
-        LoginResponse loginResponse = LoginResponse.builder()
-                .accessToken("new-access-token")
-                .refreshToken("new-refresh-token")
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(3600))
-                .email(EMAIL)
-                .userId(USER_ID)
-                .role("DEVELOPER")
-                .build();
+        LoginResponse loginResponse = new LoginResponse(
+                "new-access-token", "new-refresh-token",
+                Instant.now(), Instant.now().plusSeconds(3600),
+                FULL_NAME, EMAIL, USER_ID, "DEVELOPER");
 
         when(userService.refreshToken(REFRESH_TOKEN)).thenReturn(loginResponse);
 

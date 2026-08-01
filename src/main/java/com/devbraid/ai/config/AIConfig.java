@@ -51,7 +51,9 @@ public class AIConfig {
 
     // ── Provider selection ──
 
-    public String getProvider() { return provider; }
+    public String getProvider() {
+        return provider;
+    }
 
     public boolean isAnyConfigured() {
         return isOpenAiConfigured() || isGroqConfigured() || isOpenRouterConfigured();
@@ -59,27 +61,65 @@ public class AIConfig {
 
     // ── OpenAI ──
 
-    public String getOpenAiApiKey() { return openAiApiKey; }
-    public String getOpenAiModel() { return openAiModel; }
-    public String getOpenAiBaseUrl() { return openAiBaseUrl; }
-    public boolean isOpenAiConfigured() { return isOpenAiConfigured0(); }
-    private boolean isOpenAiConfigured0() { return openAiApiKey != null && !openAiApiKey.isBlank(); }
+    public String getOpenAiApiKey() {
+        return openAiApiKey;
+    }
+
+    public String getOpenAiModel() {
+        return openAiModel;
+    }
+
+    public String getOpenAiBaseUrl() {
+        return openAiBaseUrl;
+    }
+
+    public boolean isOpenAiConfigured() {
+        return isOpenAiConfigured0();
+    }
+
+    private boolean isOpenAiConfigured0() {
+        return openAiApiKey != null && !openAiApiKey.isBlank();
+    }
 
     // ── Groq ──
 
-    public String getGroqApiKey() { return groqApiKey; }
-    public String getGroqModel() { return groqModel; }
-    public String getGroqBaseUrl() { return groqBaseUrl; }
-    public boolean isGroqConfigured() { return groqApiKey != null && !groqApiKey.isBlank(); }
+    public String getGroqApiKey() {
+        return groqApiKey;
+    }
+
+    public String getGroqModel() {
+        return groqModel;
+    }
+
+    public String getGroqBaseUrl() {
+        return groqBaseUrl;
+    }
+
+    public boolean isGroqConfigured() {
+        return groqApiKey != null && !groqApiKey.isBlank();
+    }
 
     // ── OpenRouter ──
 
-    public String getOpenRouterApiKey() { return openRouterApiKey; }
-    public String getOpenRouterModel() { return openRouterModel; }
-    public String getOpenRouterBaseUrl() { return openRouterBaseUrl; }
-    public boolean isOpenRouterConfigured() { return openRouterApiKey != null && !openRouterApiKey.isBlank(); }
+    public String getOpenRouterApiKey() {
+        return openRouterApiKey;
+    }
+
+    public String getOpenRouterModel() {
+        return openRouterModel;
+    }
+
+    public String getOpenRouterBaseUrl() {
+        return openRouterBaseUrl;
+    }
+
+    public boolean isOpenRouterConfigured() {
+        return openRouterApiKey != null && !openRouterApiKey.isBlank();
+    }
 
     // ── Timeout ──
 
-    public int getTimeoutSeconds() { return timeoutSeconds; }
+    public int getTimeoutSeconds() {
+        return timeoutSeconds;
+    }
 }

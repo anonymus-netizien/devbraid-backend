@@ -487,7 +487,8 @@ class IndexingServiceTest {
 
     @Nested
     @DisplayName("Risk Signal Detection Tests")
-    class RiskSignalTests {        @Test
+    class RiskSignalTests {
+        @Test
         @DisplayName("large file with invalid Java syntax throws (no regex fallback)")
         void startIndexing_largeFile_failsRun() {
             // ponytail: the old regex fallback would have indexed this file and flagged large_file.
