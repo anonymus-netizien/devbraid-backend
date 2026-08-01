@@ -4,6 +4,7 @@ import com.devbraid.audit.entity.AuditLog;
 import com.devbraid.audit.repository.AuditLogRepository;
 import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
+import com.devbraid.security.SecurityUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,8 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -42,10 +41,12 @@ public class ComplianceExportService {
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
-    public byte[] exportZip(OffsetDateTime start, OffsetDateTime end, String format) {
+    public byte[] exportZip(OffsetDateTime start, OffsetDateTime end, String format) throws IOException {
         boolean json = "json".equalsIgnoreCase(format);
         String ext = json ? "json" : "csv";
 
+        // ponytail: no try/catch in service layer — IOException propagates to
+        // GlobalExceptionHandler (400), per the no-try-catch policy.
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              ZipOutputStream zos = new ZipOutputStream(baos)) {
 
@@ -58,8 +59,6 @@ public class ComplianceExportService {
 
             zos.finish();
             return baos.toByteArray();
-        } catch (IOException e) {
-            throw new ComplianceExportException("Failed to build compliance export", e);
         }
     }
 
@@ -140,8 +139,8 @@ public class ComplianceExportService {
         Map<String, Object> manifest = new LinkedHashMap<>();
         manifest.put("generatedAt", OffsetDateTime.now(ZoneOffset.UTC).toString());
         manifest.put("entries", List.of(
-                Map.of("file", "audit_logs", "sha256", sha256Hex(auditBytes)),
-                Map.of("file", "threads_summary", "sha256", sha256Hex(threadsBytes))
+                Map.of("file", "audit_logs", "sha256", SecurityUtils.sha256Hex(auditBytes)),
+                Map.of("file", "threads_summary", "sha256", SecurityUtils.sha256Hex(threadsBytes))
         ));
         return objectMapper.writeValueAsBytes(manifest);
     }
@@ -150,21 +149,6 @@ public class ComplianceExportService {
         zos.putNextEntry(new ZipEntry(name));
         zos.write(bytes);
         zos.closeEntry();
-    }
-
-    // ponytail: MessageDigest is NOT thread-safe — create per-call (JDK caches internally)
-    private String sha256Hex(byte[] data) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(data);
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
     }
 
     private String escapeCsv(Object value) {

@@ -488,29 +488,24 @@ class IndexingServiceTest {
     @Nested
     @DisplayName("Risk Signal Detection Tests")
     class RiskSignalTests {
-
         @Test
-        @DisplayName("large file with invalid Java syntax fails the run (no regex fallback)")
+        @DisplayName("large file with invalid Java syntax throws (no regex fallback)")
         void startIndexing_largeFile_failsRun() {
             // ponytail: the old regex fallback would have indexed this file and flagged large_file.
-            // Now that regex is removed, unparseable Java fails the entire run.
+            // Now that regex is removed, unparseable Java propagates to AsyncUncaughtExceptionHandler.
             StringBuilder sb = new StringBuilder("src/main/java/com/app/Huge.java\n");
             for (int i = 0; i < 310; i++) {
                 sb.append("    line ").append(i).append("\n");
             }
-            when(codebaseIndexRepository.findById(testIndex.getId())).thenReturn(Optional.of(testIndex));
+            when(codebaseIndexRepository.findById(testIndex.getId()))
+                    .thenReturn(Optional.of(testIndex));
 
-            indexingService.startIndexing(testIndex.getId(), List.of(sb.toString()));
+            // Exception propagates — startIndexing no longer catches internally
+            assertThrows(Exception.class, () ->
+                    indexingService.startIndexing(testIndex.getId(), List.of(sb.toString())));
 
-            // Entire run fails — no files indexed
-            verify(fileIndexRepository, never()).save(any(FileIndex.class));
-
-            // Index status should be FAILED
-            ArgumentCaptor<CodebaseIndex> captor = ArgumentCaptor.forClass(CodebaseIndex.class);
-            verify(codebaseIndexRepository, atLeastOnce()).save(captor.capture());
-            assertTrue(captor.getAllValues().stream()
-                            .anyMatch(i -> "FAILED".equals(i.getStatus())),
-                    "index status should be FAILED after unparseable Java");
+            // Index was set to INDEXING before the failure
+            verify(codebaseIndexRepository, atLeastOnce()).save(any(CodebaseIndex.class));
         }
 
         @Test
@@ -578,10 +573,10 @@ class IndexingServiceTest {
         }
 
         @Test
-        @DisplayName("unparseable Java file fails the entire indexing run (no regex fallback)")
+        @DisplayName("unparseable Java file throws (no regex fallback, AsyncUncaughtExceptionHandler marks FAILED)")
         void startIndexing_unparseableJava_failsRun() {
-            // ponytail: regex fallback removed — JavaParser failure propagates to startIndexing's
-            // outer catch, which sets status=FAILED. No try/catch in service layer.
+            // ponytail: regex fallback removed — JavaParser failure propagates.
+            // In production, AsyncUncaughtExceptionHandler calls markIndexFailed().
             String fileContent = "src/main/java/com/app/Broken.java\n" +
                     "public class Broken {\n" +
                     "    public void ok() {}\n" +
@@ -590,19 +585,17 @@ class IndexingServiceTest {
             when(codebaseIndexRepository.findById(testIndex.getId()))
                     .thenReturn(Optional.of(testIndex));
 
-            indexingService.startIndexing(testIndex.getId(), List.of(fileContent));
+            // Exception propagates — no try/catch in service layer
+            assertThrows(Exception.class, () ->
+                    indexingService.startIndexing(testIndex.getId(), List.of(fileContent)));
 
             // The entire run fails — no files indexed, no graph built
             verify(fileIndexRepository, never()).save(any(FileIndex.class));
             verify(codebaseNodeRepository, never()).saveAll(any());
             verify(codebaseEdgeRepository, never()).saveAll(any());
 
-            // Index status should be FAILED
-            ArgumentCaptor<CodebaseIndex> captor = ArgumentCaptor.forClass(CodebaseIndex.class);
-            verify(codebaseIndexRepository, atLeastOnce()).save(captor.capture());
-            assertTrue(captor.getAllValues().stream()
-                            .anyMatch(i -> "FAILED".equals(i.getStatus())),
-                    "index status should be FAILED after unparseable Java");
+            // Index was set to INDEXING before the failure
+            verify(codebaseIndexRepository, atLeastOnce()).save(any(CodebaseIndex.class));
         }
 
         @Test

@@ -70,7 +70,7 @@ class BriefContentGeneratorTest {
 
     @Test
     @DisplayName("buildTemplate returns the template brief")
-    void buildTemplate_returnsTemplate() {
+    void buildTemplate_returnsTemplate() throws Exception {
         when(promptBuilder.buildTemplateBrief(any(ChangeThread.class))).thenReturn("Template content");
 
         assertThat(briefContentGenerator.buildTemplate(thread())).isEqualTo("Template content");

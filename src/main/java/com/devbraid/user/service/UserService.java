@@ -2,6 +2,7 @@ package com.devbraid.user.service;
 
 import com.devbraid.audit.annotation.AuditAction;
 import com.devbraid.security.JwtTokenProvider;
+import com.devbraid.security.SecurityUtils;
 import com.devbraid.user.dto.request.RegisterRequest;
 import com.devbraid.user.dto.request.UpdatePasswordRequest;
 import com.devbraid.user.dto.request.UpdateProfileRequest;
@@ -22,13 +23,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.HexFormat;
 
 @Slf4j
 @Service
@@ -158,7 +155,7 @@ public class UserService {
         }
 
         // Look up and validate against DB
-        String tokenHash = hashToken(refreshToken);
+        String tokenHash = SecurityUtils.sha256Hex(refreshToken);
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> new InvalidCredentialsException("Refresh token not found"));
 
@@ -186,7 +183,7 @@ public class UserService {
     public void logout(String refreshToken) {
         log.info("UserService :: Logout request");
 
-        String tokenHash = hashToken(refreshToken);
+        String tokenHash = SecurityUtils.sha256Hex(refreshToken);
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
@@ -202,35 +199,20 @@ public class UserService {
         String accessToken = jwtTokenProvider.createAccessToken(userId, user.getEmail(), userRole);
         String refreshToken = jwtTokenProvider.createRefreshToken(userId, user.getEmail(), userRole);
 
-        LoginResponse response = LoginResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .issuedAt(Instant.now())
-                .expiresAt(jwtTokenProvider.getAccessExpiresAt())
-                .fullName(user.getFullName())
-                .email(user.getEmail())
-                .build();
-        response.setUserId(user.getId());
-        response.setRole(userRole);
-        return response;
+        return new LoginResponse(
+                accessToken, refreshToken,
+                Instant.now(), jwtTokenProvider.getAccessExpiresAt(),
+                user.getFullName(), user.getEmail(),
+                user.getId(), userRole
+        );
     }
 
     private void persistRefreshToken(String rawToken, User user) {
         RefreshToken tokenEntity = RefreshToken.builder()
-                .tokenHash(hashToken(rawToken))
+                .tokenHash(SecurityUtils.sha256Hex(rawToken))
                 .user(user)
                 .expiresAt(OffsetDateTime.ofInstant(jwtTokenProvider.getRefreshExpiresAt(), ZoneOffset.UTC))
                 .build();
         refreshTokenRepository.save(tokenEntity);
-    }
-
-    // ponytail: MessageDigest is NOT thread-safe — create per-call (JDK caches internally)
-    private String hashToken(String token) {
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
     }
 }

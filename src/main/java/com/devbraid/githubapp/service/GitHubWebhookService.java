@@ -5,8 +5,6 @@ import com.devbraid.changethread.service.ChangeThreadService;
 import com.devbraid.githubapp.dto.response.WebhookResponse;
 import com.devbraid.githubapp.entity.GitHubAppInstallation;
 import com.devbraid.githubapp.entity.GitHubWebhook;
-import com.devbraid.githubapp.exception.WebhookNotFoundException;
-import com.devbraid.githubapp.exception.WebhookPayloadInvalidException;
 import com.devbraid.githubapp.exception.WebhookSignatureInvalidException;
 import com.devbraid.githubapp.repository.GitHubAppInstallationRepository;
 import com.devbraid.githubapp.repository.GitHubWebhookRepository;
@@ -21,9 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
@@ -64,8 +60,10 @@ public class GitHubWebhookService {
             return false;
         }
 
-        // ponytail: extract HMAC computation to helper — no try/catch in service layer
-        Mac mac = createHmac();
+        // ponytail: no try/catch — blank secret already rejected above; HmacSHA256 is
+        // guaranteed on every JDK, so createHmac cannot fail at runtime. RuntimeException
+        // (if any) propagates to GlobalExceptionHandler per policy.
+        Mac mac = com.devbraid.security.SecurityUtils.createHmac(webhookSecret, "HmacSHA256");
         byte[] expectedSignature = mac.doFinal(payload);
         String expectedHex = "sha256=" + HexFormat.of().formatHex(expectedSignature);
 
@@ -85,8 +83,7 @@ public class GitHubWebhookService {
      * @param payload        parsed JSON payload
      * @param installationId GitHub App installation ID
      * @return webhook response
-     * @throws WebhookPayloadInvalidException if payload cannot be serialized
-     * @throws WebhookNotFoundException       if concurrent duplicate delivery is not found
+     * @throws JsonProcessingException if the payload cannot be serialized
      */
     @Transactional
     public WebhookResponse processWebhook(String eventType, String deliveryId,
@@ -243,29 +240,6 @@ public class GitHubWebhookService {
             }
         }
         return fullName;
-    }
-
-    /**
-     * Serialize JSON payload to string.
-     *
-     * @throws WebhookPayloadInvalidException if serialization fails
-     */
-    // ponytail: no try/catch — JsonProcessingException propagates to GlobalExceptionHandler (400)
-    private String serializePayload(JsonNode payload) throws JsonProcessingException {
-        return objectMapper.writeValueAsString(payload);
-    }
-
-    // ponytail: HMAC initialization extracted to helper — checked exception wrapped once at the boundary
-    private Mac createHmac() {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKeySpec = new SecretKeySpec(
-                    webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-            mac.init(secretKeySpec);
-            return mac;
-        } catch (GeneralSecurityException e) {
-            throw new WebhookSignatureInvalidException("HMAC initialization failed: " + e.getMessage());
-        }
     }
 
     private WebhookResponse toResponse(GitHubWebhook webhook) {
