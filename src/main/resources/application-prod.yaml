@@ -87,3 +87,10 @@ app.security:
   force-https: ${PROD_FORCE_HTTPS:true}
   hsts-enabled: ${PROD_HSTS_ENABLED:true}
   content-security-policy: ${PROD_CSP:default-src 'self'}
+
+# Production OpenAPI Documentation (disabled — API docs are dev/stage only)
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

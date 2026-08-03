@@ -65,3 +65,10 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+# Staging OpenAPI Documentation (enabled)
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
