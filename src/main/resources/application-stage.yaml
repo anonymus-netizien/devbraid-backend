@@ -56,12 +56,6 @@ app:
     access-expiration: ${STAGE_JWT_ACCESS_EXPIRATION:1800000}
     refresh-expiration: ${STAGE_JWT_REFRESH_EXPIRATION:604800000}
 
-# Staging Features
-features:
-  swagger-ui: true
-  api-docs: true
-  actuator: true
-
 # Staging Actuator (expose health and info)
 management:
   endpoints:
@@ -71,3 +65,10 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+# Staging OpenAPI Documentation (enabled)
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

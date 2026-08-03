@@ -52,7 +52,11 @@ public class SecurityConfig {
                                 "/api/v1/auth/otp/send",
                                 "/api/v1/auth/otp/verify",
                                 // GitHub webhooks — unauthenticated (HMAC signature verification)
-                                "/api/v1/webhooks/**"
+                                "/api/v1/webhooks/**",
+                                // OpenAPI docs + Swagger UI — unauthenticated
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
                         ).permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

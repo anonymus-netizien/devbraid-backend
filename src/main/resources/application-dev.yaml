@@ -75,8 +75,9 @@ app:
     # Generate a secure key with: openssl rand -hex 32
     key: ${ENCRYPTION_KEY:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
 
-# Development Features
-features:
-  swagger-ui: ${DEV_FEATURES_SWAGGER_UI:true}
-  api-docs: ${DEV_FEATURES_API_DOCS:true}
-  actuator: ${DEV_FEATURES_ACTUATOR:true}
+# Development OpenAPI Documentation (enabled)
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

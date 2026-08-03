@@ -70,12 +70,6 @@ app:
     access-expiration: ${PROD_JWT_ACCESS_EXPIRATION:1800000}
     refresh-expiration: ${PROD_JWT_REFRESH_EXPIRATION:604800000}
 
-# Production Features (disable dev tools)
-features:
-  swagger-ui: false
-  api-docs: false
-  actuator: true
-
 # Production Actuator (minimal exposure)
 management:
   endpoints:
@@ -93,3 +87,10 @@ app.security:
   force-https: ${PROD_FORCE_HTTPS:true}
   hsts-enabled: ${PROD_HSTS_ENABLED:true}
   content-security-policy: ${PROD_CSP:default-src 'self'}
+
+# Production OpenAPI Documentation (disabled — API docs are dev/stage only)
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
