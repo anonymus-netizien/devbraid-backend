@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -45,6 +46,7 @@ public class JwtTokenProvider {
                 .withClaim("email", email)
                 .withClaim("role", role)
                 .withClaim("type", "refresh")
+                .withJWTId(UUID.randomUUID().toString())
                 .withIssuedAt(new Date())
                 .withExpiresAt(new Date(System.currentTimeMillis() + refreshExpirationMs))
                 .sign(algorithm);
