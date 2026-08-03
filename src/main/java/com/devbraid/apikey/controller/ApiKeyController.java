@@ -76,7 +76,7 @@ public class ApiKeyController {
             content = @Content(schema = @Schema(implementation = ApiResponse.class)))
     @ApiErrorResponses
     public ResponseEntity<ApiResponse<Void>> delete(@AuthenticationPrincipal User user,
-            @PathVariable @Parameter(description = "API key ID") UUID id) {
+                                                    @PathVariable @Parameter(description = "API key ID") UUID id) {
         apiKeyService.deleteKey(user, id);
         return ResponseEntity.ok(ApiResponse.success("API key deleted"));
     }
