@@ -70,12 +70,6 @@ app:
     access-expiration: ${PROD_JWT_ACCESS_EXPIRATION:1800000}
     refresh-expiration: ${PROD_JWT_REFRESH_EXPIRATION:604800000}
 
-# Production Features (disable dev tools)
-features:
-  swagger-ui: false
-  api-docs: false
-  actuator: true
-
 # Production Actuator (minimal exposure)
 management:
   endpoints:
