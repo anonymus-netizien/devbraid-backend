@@ -1,12 +1,18 @@
 package com.devbraid.githubapp.controller;
 
 import com.devbraid.common.ApiResponse;
+import com.devbraid.common.api.ApiErrorResponses;
 import com.devbraid.githubapp.dto.response.WebhookResponse;
 import com.devbraid.githubapp.exception.WebhookPayloadTooLargeException;
 import com.devbraid.githubapp.exception.WebhookSignatureInvalidException;
 import com.devbraid.githubapp.service.GitHubWebhookService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +31,7 @@ import java.io.IOException;
 @RestController
 @RequestMapping("/api/v1/webhooks")
 @RequiredArgsConstructor
+@Tag(name = "GitHub Webhooks", description = "Receives GitHub App webhook events. Unauthenticated — the HMAC-SHA256 signature in `X-Hub-Signature-256` is the authentication mechanism.")
 public class GitHubWebhookController {
 
     private static final long MAX_PAYLOAD_SIZE = 25 * 1024 * 1024; // 25MB — GitHub's max
@@ -41,11 +48,25 @@ public class GitHubWebhookController {
      * @throws WebhookPayloadInvalidException   if request body cannot be read or parsed
      */
     @PostMapping("/github")
+    @Operation(
+            summary = "Receive a GitHub webhook event",
+            description = "Entry point configured in the GitHub App. Verifies the `X-Hub-Signature-256` HMAC signature against the shared secret, then processes push/pull-request/ping events."
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Webhook processed",
+            content = @Content(schema = @Schema(implementation = WebhookResponse.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid signature — event rejected",
+            content = @Content(schema = @Schema(implementation = ApiResponse.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "413", description = "Payload larger than 25MB",
+            content = @Content(schema = @Schema(implementation = ApiResponse.class)))
+    @ApiErrorResponses
     public ResponseEntity<ApiResponse<WebhookResponse>> handleGitHubWebhook(
             HttpServletRequest request,
-            @RequestHeader(value = "X-GitHub-Event", required = false) String eventType,
-            @RequestHeader(value = "X-GitHub-Delivery", required = false) String deliveryId,
-            @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature) throws IOException {
+            @RequestHeader(value = "X-GitHub-Event", required = false)
+            @Parameter(description = "Event type, e.g. `push`, `pull_request`, `ping`") String eventType,
+            @RequestHeader(value = "X-GitHub-Delivery", required = false)
+            @Parameter(description = "GitHub delivery GUID") String deliveryId,
+            @RequestHeader(value = "X-Hub-Signature-256", required = false)
+            @Parameter(description = "HMAC-SHA256 signature of the raw body") String signature) throws IOException {
 
         // Read raw body with size limit
         long contentLength = request.getContentLengthLong();
@@ -86,6 +107,12 @@ public class GitHubWebhookController {
      * Health check endpoint for webhook configuration verification.
      */
     @GetMapping("/github/health")
+    @Operation(
+            summary = "Webhook health check",
+            description = "Returns 200 when the webhook endpoint is reachable. Used when configuring the GitHub App."
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Webhook endpoint active",
+            content = @Content(schema = @Schema(implementation = ApiResponse.class)))
     public ResponseEntity<ApiResponse<String>> webhookHealth() {
         return ResponseEntity.ok(ApiResponse.success("Webhook endpoint is active", "ok"));
     }
