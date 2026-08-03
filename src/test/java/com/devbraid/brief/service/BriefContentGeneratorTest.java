@@ -75,4 +75,42 @@ class BriefContentGeneratorTest {
 
         assertThat(briefContentGenerator.buildTemplate(thread())).isEqualTo("Template content");
     }
+
+    @Test
+    @DisplayName("null AI output falls back to the template")
+    void generateContent_nullAiOutput_fallsBackToTemplate() throws Exception {
+        when(promptBuilder.buildBriefPrompt(any(ChangeThread.class))).thenReturn("prompt");
+        when(aiProvider.analyze("prompt")).thenReturn(null);
+        when(promptBuilder.buildTemplateBrief(any(ChangeThread.class))).thenReturn("Template content");
+
+        String content = briefContentGenerator.generateContent(thread());
+
+        assertThat(content).isEqualTo("Template content");
+        verify(promptBuilder).buildTemplateBrief(any(ChangeThread.class));
+    }
+
+    @Test
+    @DisplayName("blank AI output falls back to the template")
+    void generateContent_blankAiOutput_fallsBackToTemplate() throws Exception {
+        when(promptBuilder.buildBriefPrompt(any(ChangeThread.class))).thenReturn("prompt");
+        when(aiProvider.analyze("prompt")).thenReturn("   \n\t ");
+        when(promptBuilder.buildTemplateBrief(any(ChangeThread.class))).thenReturn("Template content");
+
+        String content = briefContentGenerator.generateContent(thread());
+
+        assertThat(content).isEqualTo("Template content");
+    }
+
+    @Test
+    @DisplayName("output with [source:] marker is accepted as evidence-backed")
+    void generateContent_sourceMarker_isAccepted() throws Exception {
+        when(promptBuilder.buildBriefPrompt(any(ChangeThread.class))).thenReturn("prompt");
+        when(aiProvider.analyze("prompt"))
+                .thenReturn("**Summary** [source:SecurityConfig.java] added filtering");
+
+        String content = briefContentGenerator.generateContent(thread());
+
+        assertThat(content).isEqualTo("**Summary** [source:SecurityConfig.java] added filtering");
+        verify(aiProvider).analyze("prompt");
+    }
 }

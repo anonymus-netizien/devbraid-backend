@@ -219,4 +219,81 @@ class BriefBuilderServiceTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getThreadTitle()).isEqualTo("Test Thread");
     }
+
+    @Test
+    @DisplayName("generateBrief() transitions DRAFT thread to READY")
+    void generateBrief_DraftThread_TransitionsToReady() throws Exception {
+        when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
+                .thenReturn(Optional.of(testThread));
+        when(briefContentGenerator.generateContent(testThread)).thenReturn("Content [file:src/auth/AuthService.java]");
+        when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.empty());
+        when(briefRepository.save(any(ChangeBrief.class))).thenReturn(testBrief);
+        when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
+                .thenAnswer(invocation -> {
+                    BriefResponse r = new BriefResponse();
+                    r.setId(testBrief.getId());
+                    r.setThreadId(testThread.getId());
+                    return r;
+                });
+
+        briefBuilderService.generateBrief(testUser, testThread.getId());
+
+        assertThat(testThread.getStatus()).isEqualTo(ThreadStatus.READY);
+        verify(threadRepository).save(testThread);
+    }
+
+    @Test
+    @DisplayName("getBriefById() returns brief with ownership verification")
+    void getBriefById_OwnedByUser_ReturnsBrief() {
+        when(briefRepository.findByIdAndThread_UserId(testBrief.getId(), testUser.getId()))
+                .thenReturn(Optional.of(testBrief));
+        when(generalModelMapper.map(any(ChangeBrief.class), eq(BriefResponse.class)))
+                .thenAnswer(invocation -> {
+                    BriefResponse r = new BriefResponse();
+                    r.setId(testBrief.getId());
+                    r.setThreadId(testThread.getId());
+                    r.setPublishedToGithub(false);
+                    return r;
+                });
+
+        BriefResponse response = briefBuilderService.getBriefById(testUser, testBrief.getId());
+
+        assertThat(response).isNotNull();
+        assertThat(response.getId()).isEqualTo(testBrief.getId());
+        verify(briefRepository).findByIdAndThread_UserId(testBrief.getId(), testUser.getId());
+    }
+
+    @Test
+    @DisplayName("getBriefById() throws when brief not found or not owned")
+    void getBriefById_NotOwned_ThrowsException() {
+        when(briefRepository.findByIdAndThread_UserId(any(), any())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> briefBuilderService.getBriefById(testUser, UUID.randomUUID()))
+                .isInstanceOf(com.devbraid.changethread.exception.BriefNotFoundException.class)
+                .hasMessageContaining("Brief not found");
+    }
+
+    @Test
+    @DisplayName("getBrief() returns null when thread has no brief")
+    void getBrief_NoBriefExists_ReturnsNull() {
+        when(threadRepository.findByIdAndUserId(testThread.getId(), testUser.getId()))
+                .thenReturn(Optional.of(testThread));
+        when(briefRepository.findByThreadId(testThread.getId())).thenReturn(Optional.empty());
+
+        BriefResponse response = briefBuilderService.getBrief(testUser, testThread.getId());
+
+        assertThat(response).isNull();
+    }
+
+    @Test
+    @DisplayName("getBrief() throws when thread not found")
+    void getBrief_ThreadNotFound_ThrowsException() {
+        when(threadRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> briefBuilderService.getBrief(testUser, UUID.randomUUID()))
+                .isInstanceOf(ThreadNotFoundException.class)
+                .hasMessageContaining("Thread not found");
+
+        verify(briefRepository, never()).findByThreadId(any());
+    }
 }
