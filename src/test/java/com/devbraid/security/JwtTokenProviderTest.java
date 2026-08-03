@@ -47,6 +47,16 @@ class JwtTokenProviderTest {
     }
 
     @Test
+    @DisplayName("consecutive refresh tokens are unique (jti claim)")
+    void createRefreshToken_ConsecutiveTokens_AreUnique() {
+        String token1 = jwtTokenProvider.createRefreshToken(USER_ID, EMAIL, ROLE);
+        String token2 = jwtTokenProvider.createRefreshToken(USER_ID, EMAIL, ROLE);
+
+        assertThat(token1).isNotEqualTo(token2);
+        assertThat(jwtTokenProvider.verify(token1).getId()).isNotEqualTo(jwtTokenProvider.verify(token2).getId());
+    }
+
+    @Test
     @DisplayName("verify with valid token succeeds")
     void verify_ValidToken_Succeeds() {
         String token = jwtTokenProvider.createAccessToken(USER_ID, EMAIL, ROLE);
