@@ -7,7 +7,6 @@ import com.devbraid.user.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -42,9 +41,9 @@ public class GitHubOAuthController {
             description = "Generates a one-time state nonce (Redis, 10-min TTL) and returns the GitHub authorize URL for the authenticated user."
     )
     @SecurityRequirement(name = "bearer-jwt")
-    @ApiResponse(responseCode = "200", description = "Authorize URL generated",
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Authorize URL generated",
             content = @Content(schema = @Schema(implementation = ApiResponse.class)))
-    @ApiResponse(responseCode = "503", description = "GitHub OAuth not configured",
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "GitHub OAuth not configured",
             content = @Content(schema = @Schema(implementation = ApiResponse.class)))
     @ApiErrorResponses
     public ResponseEntity<ApiResponse<String>> startOAuth(@AuthenticationPrincipal User user) {
