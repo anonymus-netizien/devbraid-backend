@@ -14,4 +14,10 @@ public class ChangedFileDto {
     private String status;
     private int additions;
     private int deletions;
+    private String patch;
+
+    // Backwards-compatible 4-arg constructor for existing callers/tests
+    public ChangedFileDto(String filename, String status, int additions, int deletions) {
+        this(filename, status, additions, deletions, null);
+    }
 }

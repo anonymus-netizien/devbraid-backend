@@ -1,11 +1,10 @@
 package com.devbraid.github.client;
 
-import com.devbraid.github.dto.internal.RawGitHubBranch;
-import com.devbraid.github.dto.internal.RawGitHubOrg;
-import com.devbraid.github.dto.internal.RawGitHubRepo;
-import com.devbraid.github.dto.internal.RawGitHubUser;
+import com.devbraid.github.dto.internal.*;
+import com.devbraid.github.dto.request.ReviewCommentRequest;
 import com.devbraid.github.dto.response.CommitSummaryDto;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
+import com.devbraid.github.dto.response.GitHubReviewResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -130,6 +129,69 @@ public class GitHubApiClient {
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to create PR comment", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("GitHub API request interrupted", e);
+        }
+    }
+
+    /**
+     * Fetch a pull request.
+     */
+    public RawGitHubPullRequest getPullRequest(String token, String owner, String repo, int prNumber) {
+        String path = "/repos/" + owner + "/" + repo + "/pulls/" + prNumber;
+        return get(path, token, RawGitHubPullRequest.class);
+    }
+
+    /**
+     * Create a review on a pull request, optionally with inline comments.
+     */
+    public GitHubReviewResponse createPullRequestReview(String token, String owner, String repo, int prNumber,
+                                                        String body, String event, List<ReviewCommentRequest> comments) {
+        String path = "/repos/" + owner + "/" + repo + "/pulls/" + prNumber + "/reviews";
+        try {
+            java.util.LinkedHashMap<String, Object> jsonBody = new java.util.LinkedHashMap<>();
+            jsonBody.put("body", body);
+            if (event != null) {
+                jsonBody.put("event", event);
+            }
+            if (comments != null && !comments.isEmpty()) {
+                jsonBody.put("comments", comments);
+            }
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(apiBase + path))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Accept", "application/vnd.github+json")
+                    .header("Content-Type", "application/json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .header("User-Agent", "DevBraid")
+                    .timeout(TIMEOUT)
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(jsonBody)))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            int status = response.statusCode();
+            if (status == 401) {
+                throw new com.devbraid.github.exception.GitHubTokenInvalidException(
+                        "GitHub token is invalid or expired. Please reconnect."
+                );
+            }
+            if (status == 403) {
+                throw new com.devbraid.github.exception.GitHubRateLimitException(
+                        "GitHub API rate limit exceeded. Try again later."
+                );
+            }
+            if (status == 404) {
+                throw new com.devbraid.github.exception.GitHubNotFoundException(
+                        "GitHub resource not found. Check repo and branch names."
+                );
+            }
+            if (status != 200 && status != 201) {
+                log.warn("GitHub API returned {} for PR review: {}", status, response.body());
+                throw new RuntimeException("GitHub API error: " + status);
+            }
+            return objectMapper.readValue(response.body(), GitHubReviewResponse.class);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create PR review", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("GitHub API request interrupted", e);
