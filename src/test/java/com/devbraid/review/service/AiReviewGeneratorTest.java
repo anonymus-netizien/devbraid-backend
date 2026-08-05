@@ -24,6 +24,10 @@ import static org.mockito.Mockito.when;
 class AiReviewGeneratorTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final List<ChangedFileDto> files = List.of(new ChangedFileDto(
+            "src/main/java/App.java", "modified", 2, 0,
+            "@@ -0,0 +1,2 @@\n+line1\n+line2"));
+    private final List<CommitSummaryDto> commits = List.of();
     @Mock
     private AIProvider aiProvider;
     private AiReviewGenerator generator;
@@ -32,11 +36,6 @@ class AiReviewGeneratorTest {
     void setUp() {
         generator = new AiReviewGenerator(aiProvider, objectMapper);
     }
-
-    private final List<ChangedFileDto> files = List.of(new ChangedFileDto(
-            "src/main/java/App.java", "modified", 2, 0,
-            "@@ -0,0 +1,2 @@\n+line1\n+line2"));
-    private final List<CommitSummaryDto> commits = List.of();
 
     @Test
     @DisplayName("generate() parses and validates a valid AI response")
