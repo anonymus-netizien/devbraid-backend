@@ -6,6 +6,7 @@ import com.devbraid.githubapp.entity.GitHubWebhook;
 import com.devbraid.githubapp.exception.WebhookSignatureInvalidException;
 import com.devbraid.githubapp.repository.GitHubAppInstallationRepository;
 import com.devbraid.githubapp.repository.GitHubWebhookRepository;
+import com.devbraid.review.service.PrReviewTriggerService;
 import com.devbraid.user.entity.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -41,6 +42,8 @@ class GitHubWebhookServiceTest {
     private GitHubAppInstallationRepository installationRepository;
     @Mock
     private ChangeThreadService changeThreadService;
+    @Mock
+    private PrReviewTriggerService prReviewTriggerService;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -185,6 +188,7 @@ class GitHubWebhookServiceTest {
             prNode.put("body", "PR description");
             com.fasterxml.jackson.databind.node.ObjectNode headNode = objectMapper.createObjectNode();
             headNode.put("ref", "feature-branch");
+            headNode.put("sha", "sha123");
             prNode.set("head", headNode);
             com.fasterxml.jackson.databind.node.ObjectNode baseNode = objectMapper.createObjectNode();
             baseNode.put("ref", "main");
@@ -194,6 +198,8 @@ class GitHubWebhookServiceTest {
             webhookService.processWebhook("pull_request", deliveryId, "opened", payload, 12345L);
 
             verify(changeThreadService).createThread(eq(testUser), any());
+            verify(prReviewTriggerService).triggerWebhookReview(
+                    eq(testUser), eq(threadResponse.getId()), eq(42), eq("sha123"), eq(12345L));
         }
 
         @Test
