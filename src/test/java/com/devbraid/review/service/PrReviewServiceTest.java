@@ -215,7 +215,7 @@ class PrReviewServiceTest {
         PrReviewResponse response = prReviewService.publishReview(user, reviewId);
 
         assertThat(response.getStatus()).isEqualTo(ReviewStatus.PUBLISHED);
-        assertThat(response.getPublished()).isTrue();
+        assertThat(response.isPublished()).isTrue();
         assertThat(review.getStatus()).isEqualTo(ReviewStatus.PUBLISHED);
         assertThat(review.getGithubReviewId()).isEqualTo(123L);
         verify(reviewPublisher).publish(review, "app-token");
