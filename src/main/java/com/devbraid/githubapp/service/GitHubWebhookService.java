@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.Mac;
@@ -139,7 +140,13 @@ public class GitHubWebhookService {
 
     /**
      * Dispatch a webhook event to its handler — invoked by the durable job worker.
+     * <p>
+     * Runs in its own transaction (REQUIRES_NEW): a handler failure must not mark the
+     * job-state transaction rollback-only, or the worker's attempt/backoff bookkeeping
+     * (WebhookJobProcessor) would be silently rolled back and the job re-claimed forever
+     * instead of retrying with backoff and dead-lettering.
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void dispatch(String eventType, String action, JsonNode payload, Long installationId) {
         dispatchEvent(eventType, action, payload, installationId);
     }
