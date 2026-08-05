@@ -167,7 +167,7 @@ public class GitHubWebhookService {
         );
 
         // ponytail: no try/catch — thread creation failures propagate to GlobalExceptionHandler
-        var threadResponse = changeThreadService.createThread(user, request);
+        var threadResponse = changeThreadService.createThreadForInstallation(user, installationId, request);
         log.info("Auto-created thread {} for PR #{} on {}", threadResponse.getId(), prNumber, repoFullName);
 
         // Auto-review the PR (Code-Rabbit-style) — async so the webhook response

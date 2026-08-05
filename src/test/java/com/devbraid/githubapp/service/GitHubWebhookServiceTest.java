@@ -171,7 +171,8 @@ class GitHubWebhookServiceTest {
                             .id(UUID.randomUUID())
                             .title("Test PR")
                             .build();
-            when(changeThreadService.createThread(eq(testUser), any())).thenReturn(threadResponse);
+            when(changeThreadService.createThreadForInstallation(eq(testUser), eq(12345L), any()))
+                    .thenReturn(threadResponse);
 
             com.fasterxml.jackson.databind.node.ObjectNode payload = objectMapper.createObjectNode();
             payload.put("action", "opened");
@@ -197,7 +198,7 @@ class GitHubWebhookServiceTest {
 
             webhookService.processWebhook("pull_request", deliveryId, "opened", payload, 12345L);
 
-            verify(changeThreadService).createThread(eq(testUser), any());
+            verify(changeThreadService).createThreadForInstallation(eq(testUser), eq(12345L), any());
             verify(prReviewTriggerService).triggerWebhookReview(
                     eq(testUser), eq(threadResponse.getId()), eq(42), eq("sha123"), eq(12345L));
         }
@@ -228,7 +229,7 @@ class GitHubWebhookServiceTest {
 
             assertNotNull(response);
             assertTrue(response.getProcessed());
-            verify(changeThreadService, never()).createThread(any(), any());
+            verify(changeThreadService, never()).createThreadForInstallation(any(), any(), any());
         }
 
         @Test
@@ -308,7 +309,7 @@ class GitHubWebhookServiceTest {
 
             assertNotNull(response);
             assertTrue(response.getProcessed());
-            verify(changeThreadService, never()).createThread(any(), any());
+            verify(changeThreadService, never()).createThreadForInstallation(any(), any(), any());
         }
 
         @Test
@@ -346,7 +347,7 @@ class GitHubWebhookServiceTest {
 
             webhookService.processWebhook("pull_request", deliveryId, "opened", payload, 12345L);
 
-            verify(changeThreadService, never()).createThread(any(), any());
+            verify(changeThreadService, never()).createThreadForInstallation(any(), any(), any());
         }
     }
 }
