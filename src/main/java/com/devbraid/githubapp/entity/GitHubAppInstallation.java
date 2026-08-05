@@ -63,10 +63,33 @@ public class GitHubAppInstallation {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "active", nullable = false)
+    @Builder.Default
+    private Boolean active = true;
+
+    @Column(name = "suspended", nullable = false)
+    @Builder.Default
+    private Boolean suspended = false;
+
     @Column(name = "suspended_at")
     private OffsetDateTime suspendedAt;
 
     // Setters for mutable fields
+    public void setActive(Boolean active) {
+        this.active = active;
+    }
+
+    public void setSuspended(Boolean suspended) {
+        this.suspended = suspended;
+    }
+
+    public void setAccountLogin(String accountLogin) {
+        this.accountLogin = accountLogin;
+    }
+
+    public void setAccountType(String accountType) {
+        this.accountType = accountType;
+    }
     public void setAccessTokenEncrypted(byte[] accessTokenEncrypted) {
         this.accessTokenEncrypted = accessTokenEncrypted;
     }
