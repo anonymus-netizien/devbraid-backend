@@ -77,3 +77,10 @@ ai:
     api-key: ${OPENROUTER_API_KEY:}
     model: ${OPENROUTER_MODEL:meta-llama/llama-3.3-70b-instruct:free}
     base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+
+# GitHub App Configuration
+github:
+  app:
+    app-id: ${GITHUB_APP_ID:}
+    private-key: ${GITHUB_APP_PRIVATE_KEY:}
+    webhook-secret: ${GITHUB_APP_WEBHOOK_SECRET:}
