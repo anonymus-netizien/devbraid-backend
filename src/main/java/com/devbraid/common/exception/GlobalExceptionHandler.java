@@ -235,6 +235,14 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(GitHubOAuthNotConfiguredException.class)
+    public ResponseEntity<ApiResponse<?>> handleGitHubOAuthNotConfigured(GitHubOAuthNotConfiguredException ex) {
+        log.warn("GlobalExceptionHandler :: GitHub OAuth not configured: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
     // ── Spring resource exceptions ──
 
     @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)

@@ -53,6 +53,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/otp/verify",
                                 // GitHub webhooks — unauthenticated (HMAC signature verification)
                                 "/api/v1/webhooks/**",
+                                // GitHub App OAuth callback — GitHub redirects the browser here
+                                "/api/v1/github-app/oauth/callback",
                                 // OpenAPI docs + Swagger UI — unauthenticated
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
