@@ -191,10 +191,7 @@ class PrReviewServiceTest {
     @Test
     @DisplayName("publishReview() publishes a COMPLETED review, persists PUBLISHED + githubReviewId")
     void publishReview_completed_publishesAndMarksPublished() {
-        User threadOwner = org.mockito.Mockito.mock(User.class);
-        when(threadOwner.getId()).thenReturn(userId);
         ChangeThread ownedThread = org.mockito.Mockito.mock(ChangeThread.class);
-        when(ownedThread.getUser()).thenReturn(threadOwner);
         when(ownedThread.getRepositoryFullName()).thenReturn("octo/repo");
 
         PrReview review = PrReview.builder().thread(ownedThread).prNumber(42).headSha("abc123")
