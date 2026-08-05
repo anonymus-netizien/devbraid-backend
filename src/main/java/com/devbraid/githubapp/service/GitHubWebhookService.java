@@ -8,6 +8,7 @@ import com.devbraid.githubapp.entity.GitHubWebhook;
 import com.devbraid.githubapp.exception.WebhookSignatureInvalidException;
 import com.devbraid.githubapp.repository.GitHubAppInstallationRepository;
 import com.devbraid.githubapp.repository.GitHubWebhookRepository;
+import com.devbraid.review.service.PrReviewTriggerService;
 import com.devbraid.user.entity.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -38,6 +39,7 @@ public class GitHubWebhookService {
     private final GitHubWebhookRepository webhookRepository;
     private final GitHubAppInstallationRepository installationRepository;
     private final ChangeThreadService changeThreadService;
+    private final PrReviewTriggerService prReviewTriggerService;
     private final ObjectMapper objectMapper;
 
     @Value("${github.app.webhook-secret:}")
@@ -143,6 +145,7 @@ public class GitHubWebhookService {
         String title = prNode.path("title").asText("PR #" + prNode.path("number").asInt());
         String description = prNode.path("body").asText(null);
         int prNumber = prNode.path("number").asInt();
+        String headSha = prNode.path("head").path("sha").asText(null);
 
         if (repoFullName == null || headBranch == null) {
             log.warn("Missing required fields in pull_request webhook");
@@ -166,6 +169,12 @@ public class GitHubWebhookService {
         // ponytail: no try/catch — thread creation failures propagate to GlobalExceptionHandler
         var threadResponse = changeThreadService.createThread(user, request);
         log.info("Auto-created thread {} for PR #{} on {}", threadResponse.getId(), prNumber, repoFullName);
+
+        // Auto-review the PR (Code-Rabbit-style) — async so the webhook response
+        // is never blocked by diff fetching or LLM calls.
+        if (headSha != null) {
+            prReviewTriggerService.triggerWebhookReview(user, threadResponse.getId(), prNumber, headSha, installationId);
+        }
     }
 
     /**
