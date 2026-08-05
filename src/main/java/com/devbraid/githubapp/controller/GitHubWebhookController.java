@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,6 +43,10 @@ public class GitHubWebhookController {
     /**
      * Receive GitHub webhook events.
      * GitHub sends POST requests with X-GitHub-Event, X-GitHub-Delivery, and X-Hub-Signature-256 headers.
+     * The webhook row + a durable job row are persisted in one transaction and
+     * the event is dispatched asynchronously by the job worker — the request
+     * returns 202 Accepted. A replayed delivery (same X-GitHub-Delivery) returns
+     * the recorded result with 200 and {@code replayed: true}.
      *
      * @throws WebhookPayloadTooLargeException  if payload exceeds 25MB
      * @throws WebhookSignatureInvalidException if signature verification fails
@@ -50,9 +55,11 @@ public class GitHubWebhookController {
     @PostMapping("/github")
     @Operation(
             summary = "Receive a GitHub webhook event",
-            description = "Entry point configured in the GitHub App. Verifies the `X-Hub-Signature-256` HMAC signature against the shared secret, then processes push/pull-request/ping events."
+            description = "Entry point configured in the GitHub App. Verifies the `X-Hub-Signature-256` HMAC signature against the shared secret, persists the webhook and enqueues a durable job (202), or returns the recorded result for a replayed delivery (200)."
     )
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Webhook processed",
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "202", description = "Webhook accepted and queued",
+            content = @Content(schema = @Schema(implementation = WebhookResponse.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Replayed delivery — recorded result returned",
             content = @Content(schema = @Schema(implementation = WebhookResponse.class)))
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid signature — event rejected",
             content = @Content(schema = @Schema(implementation = ApiResponse.class)))
@@ -96,11 +103,15 @@ public class GitHubWebhookController {
             installationId = payload.path("installation").path("id").asLong();
         }
 
-        // Process the webhook — exceptions propagate to GlobalExceptionHandler
-        WebhookResponse response = webhookService.processWebhook(
+        // Persist webhook + job and queue for async dispatch — exceptions propagate to GlobalExceptionHandler
+        WebhookResponse response = webhookService.receiveWebhook(
                 eventType, deliveryId, action, payload, installationId);
 
-        return ResponseEntity.ok(ApiResponse.success("Webhook processed", response));
+        if (Boolean.TRUE.equals(response.getReplayed())) {
+            return ResponseEntity.ok(ApiResponse.success("Webhook already processed", response));
+        }
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ApiResponse.success("Webhook accepted for processing", response));
     }
 
     /**

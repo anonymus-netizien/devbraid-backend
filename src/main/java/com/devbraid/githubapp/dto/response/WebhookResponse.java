@@ -23,4 +23,5 @@ public class WebhookResponse {
     private String processingError;
     private OffsetDateTime receivedAt;
     private OffsetDateTime processedAt;
+    private Boolean replayed;
 }

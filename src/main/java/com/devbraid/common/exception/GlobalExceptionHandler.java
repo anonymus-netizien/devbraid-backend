@@ -9,6 +9,7 @@ import com.devbraid.github.exception.*;
 import com.devbraid.githubapp.exception.*;
 import com.devbraid.user.exception.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -232,6 +233,22 @@ public class GlobalExceptionHandler {
         log.error("GlobalExceptionHandler :: Webhook processing failed: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(GitHubOAuthNotConfiguredException.class)
+    public ResponseEntity<ApiResponse<?>> handleGitHubOAuthNotConfigured(GitHubOAuthNotConfiguredException ex) {
+        log.warn("GlobalExceptionHandler :: GitHub OAuth not configured: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                ApiResponse.error(ex.getMessage())
+        );
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("GlobalExceptionHandler :: Data integrity violation: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                ApiResponse.error("Conflict: duplicate request or invalid reference")
         );
     }
 

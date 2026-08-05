@@ -105,4 +105,20 @@ public class PrReviewController {
         return ResponseEntity.ok(ApiResponse.success("Reviews retrieved",
                 prReviewService.listReviews(user, pageable)));
     }
+
+    @PostMapping("/api/v1/reviews/{reviewId}/publish")
+    @Operation(
+            summary = "Publish a completed review to GitHub",
+            description = "Posts the review's findings to the pull request on GitHub and marks the review PUBLISHED. Only the thread owner can publish, and only a review in COMPLETED state."
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Review published",
+            content = @Content(schema = @Schema(implementation = PrReviewResponse.class)))
+    @ApiErrorResponses
+    public ResponseEntity<ApiResponse<PrReviewResponse>> publishReview(
+            @PathVariable @Parameter(description = "Review ID") UUID reviewId,
+            @AuthenticationPrincipal User user) {
+        log.info("Publish requested for review {} by user {}", reviewId, user.getEmail());
+        return ResponseEntity.ok(ApiResponse.success("Review published",
+                prReviewService.publishReview(user, reviewId)));
+    }
 }

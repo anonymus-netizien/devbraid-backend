@@ -2,6 +2,7 @@ package com.devbraid.common.exception;
 
 import com.devbraid.common.ApiResponse;
 import com.devbraid.github.exception.*;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -145,5 +146,18 @@ class GlobalExceptionHandlerTest {
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().success()).isFalse();
+    }
+
+
+    @Test
+    @DisplayName("DataIntegrityViolationException returns 409 CONFLICT")
+    void handleDataIntegrityViolation_Returns409() {
+        ResponseEntity<ApiResponse<?>> result =
+                handler.handleDataIntegrityViolation(new DataIntegrityViolationException("duplicate key value"));
+
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(result.getBody()).isNotNull();
+        assertThat(result.getBody().success()).isFalse();
+        assertThat(result.getBody().message()).contains("Conflict");
     }
 }

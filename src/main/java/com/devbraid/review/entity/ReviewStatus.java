@@ -6,5 +6,6 @@ package com.devbraid.review.entity;
 public enum ReviewStatus {
     RUNNING,
     COMPLETED,
-    FAILED
+    FAILED,
+    PUBLISHED
 }

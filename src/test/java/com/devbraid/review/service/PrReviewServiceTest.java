@@ -7,6 +7,9 @@ import com.devbraid.github.client.GitHubApiClient;
 import com.devbraid.github.dto.response.ChangedFileDto;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.githubapp.GitHubAppTokenService;
+import com.devbraid.githubapp.entity.GitHubAppInstallation;
+import com.devbraid.githubapp.repository.GitHubAppInstallationRepository;
+import com.devbraid.review.dto.response.PrReviewResponse;
 import com.devbraid.review.entity.FindingCategory;
 import com.devbraid.review.entity.FindingSeverity;
 import com.devbraid.review.entity.PrReview;
@@ -22,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +52,8 @@ class PrReviewServiceTest {
     private GitHubApiClient gitHubApiClient;
     @Mock
     private GitHubAppTokenService tokenService;
+    @Mock
+    private GitHubAppInstallationRepository installationRepository;
     @Mock
     private DeterministicReviewRules deterministicReviewRules;
     @Mock
@@ -91,7 +97,7 @@ class PrReviewServiceTest {
         assertThat(review.getSeverityCounts().get("MEDIUM")).isEqualTo(1L);
         assertThat(review.getComments()).hasSize(1);
         assertThat(review.getComments().get(0).getLineNumber()).isNull();
-        verify(reviewPublisher).publish(eq(review), eq("token"));
+        verify(reviewPublisher, never()).publish(any(), any());
     }
 
     @Test
@@ -115,7 +121,7 @@ class PrReviewServiceTest {
         assertThat(review.getComments()).hasSize(1);
         assertThat(review.getComments().get(0).getLineNumber()).isEqualTo(1);
         assertThat(review.getSeverityCounts().get("HIGH")).isEqualTo(1L);
-        verify(reviewPublisher).publish(eq(review), eq("token"));
+        verify(reviewPublisher, never()).publish(any(), any());
     }
 
     @Test
@@ -180,5 +186,85 @@ class PrReviewServiceTest {
 
         assertThatThrownBy(() -> prReviewService.runReview(user, threadId, 42, "abc123", 1L))
                 .isInstanceOf(ThreadNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("publishReview() publishes a COMPLETED review, persists PUBLISHED + githubReviewId")
+    void publishReview_completed_publishesAndMarksPublished() {
+        ChangeThread ownedThread = org.mockito.Mockito.mock(ChangeThread.class);
+        when(ownedThread.getRepositoryFullName()).thenReturn("octo/repo");
+
+        PrReview review = PrReview.builder().thread(ownedThread).prNumber(42).headSha("abc123")
+                .status(ReviewStatus.COMPLETED).build();
+        UUID reviewId = setReviewId(review);
+
+        when(reviewRepository.findByIdAndThreadUserId(reviewId, userId)).thenReturn(Optional.of(review));
+        when(installationRepository.findByUserId(userId))
+                .thenReturn(List.of(GitHubAppInstallation.builder().installationId(7L).build()));
+        when(tokenService.getInstallationToken(7L)).thenReturn("app-token");
+        doAnswer(inv -> {
+            review.setGithubReviewId(123L);
+            review.setGithubReviewUrl("https://github.com/octo/repo/pull/42#pullrequestreview-123");
+            review.setPublished(true);
+            return null;
+        }).when(reviewPublisher).publish(review, "app-token");
+
+        PrReviewResponse response = prReviewService.publishReview(user, reviewId);
+
+        assertThat(response.getStatus()).isEqualTo(ReviewStatus.PUBLISHED);
+        assertThat(response.isPublished()).isTrue();
+        assertThat(review.getStatus()).isEqualTo(ReviewStatus.PUBLISHED);
+        assertThat(review.getGithubReviewId()).isEqualTo(123L);
+        verify(reviewPublisher).publish(review, "app-token");
+        verify(reviewRepository).save(review);
+    }
+
+    @Test
+    @DisplayName("publishReview() throws AccessDeniedException for a review owned by another user")
+    void publishReview_notOwned_throwsForbidden() {
+        UUID reviewId = UUID.randomUUID();
+        when(reviewRepository.findByIdAndThreadUserId(reviewId, userId)).thenReturn(Optional.empty());
+        when(reviewRepository.existsById(reviewId)).thenReturn(true);
+
+        assertThatThrownBy(() -> prReviewService.publishReview(user, reviewId))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("publishReview() throws ThreadNotFound for a missing review")
+    void publishReview_missing_throwsNotFound() {
+        UUID reviewId = UUID.randomUUID();
+        when(reviewRepository.findByIdAndThreadUserId(reviewId, userId)).thenReturn(Optional.empty());
+        when(reviewRepository.existsById(reviewId)).thenReturn(false);
+
+        assertThatThrownBy(() -> prReviewService.publishReview(user, reviewId))
+                .isInstanceOf(ThreadNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("publishReview() rejects a review that is not COMPLETED")
+    void publishReview_notCompleted_throwsBadRequest() {
+        PrReview review = PrReview.builder().thread(thread).prNumber(42).headSha("abc123")
+                .status(ReviewStatus.RUNNING).build();
+        UUID reviewId = setReviewId(review);
+
+        when(reviewRepository.findByIdAndThreadUserId(reviewId, userId)).thenReturn(Optional.of(review));
+
+        assertThatThrownBy(() -> prReviewService.publishReview(user, reviewId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("COMPLETED");
+        verify(reviewPublisher, never()).publish(any(), any());
+    }
+
+    private UUID setReviewId(PrReview review) {
+        UUID reviewId = UUID.randomUUID();
+        try {
+            var field = PrReview.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(review, reviewId);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return reviewId;
     }
 }

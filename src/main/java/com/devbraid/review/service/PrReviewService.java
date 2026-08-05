@@ -6,6 +6,8 @@ import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.github.client.GitHubApiClient;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.githubapp.GitHubAppTokenService;
+import com.devbraid.githubapp.entity.GitHubAppInstallation;
+import com.devbraid.githubapp.repository.GitHubAppInstallationRepository;
 import com.devbraid.review.dto.response.PrReviewCommentResponse;
 import com.devbraid.review.dto.response.PrReviewListItemResponse;
 import com.devbraid.review.dto.response.PrReviewResponse;
@@ -20,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,8 +31,10 @@ import java.util.*;
 
 /**
  * Orchestrates a full PR review run: fetch diff → deterministic rules → AI
- * (fallback-safe) → merge → persist → publish to GitHub. Idempotent per
- * (thread, head SHA): an existing non-failed review is returned unchanged.
+ * (fallback-safe) → merge → persist. Reviews land in COMPLETED without any
+ * GitHub call; publication to GitHub is a separate, approval-gated step
+ * ({@link #publishReview}). Idempotent per (thread, head SHA): an existing
+ * non-failed review is returned unchanged.
  */
 @Slf4j
 @Service
@@ -39,6 +44,7 @@ public class PrReviewService {
     private final PrReviewRepository reviewRepository;
     private final PrReviewCommentRepository commentRepository;
     private final ChangeThreadRepository threadRepository;
+    private final GitHubAppInstallationRepository installationRepository;
     private final GitHubApiClient gitHubApiClient;
     private final GitHubAppTokenService tokenService;
     private final DeterministicReviewRules deterministicReviewRules;
@@ -66,11 +72,6 @@ public class PrReviewService {
             review.setStatus(ReviewStatus.COMPLETED);
             review.setCompletedAt(OffsetDateTime.now());
             reviewRepository.save(review);
-
-            // ponytail: publish after persist — GitHub is the single external call,
-            // and a posting failure propagates to the FAILED state below.
-            reviewPublisher.publish(review, tokenService.getInstallationToken(installationId));
-            reviewRepository.save(review);
             log.info("Review {} completed for PR #{} ({}) with {} findings",
                     review.getId(), prNumber, headSha, review.getComments().size());
         } catch (Exception e) {
@@ -83,6 +84,32 @@ public class PrReviewService {
             throw new RuntimeException("PR review failed: " + e.getMessage(), e);
         }
         return review;
+    }
+
+    /**
+     * Approval-gated publication: posts a COMPLETED review to GitHub as a PR
+     * review and marks it PUBLISHED. The review must be owned by the caller
+     * (403 otherwise) and in COMPLETED state (400 otherwise). On failure the
+     * review stays COMPLETED so the caller can retry.
+     */
+    @Transactional
+    public PrReviewResponse publishReview(User user, UUID reviewId) {
+        PrReview review = reviewRepository.findByIdAndThreadUserId(reviewId, user.getId())
+                .orElseThrow(() -> reviewRepository.existsById(reviewId)
+                        ? new AccessDeniedException("You do not own this review")
+                        : new ThreadNotFoundException("Review not found"));
+
+        if (review.getStatus() != ReviewStatus.COMPLETED) {
+            throw new IllegalArgumentException("Only COMPLETED reviews can be published");
+        }
+
+        Long installationId = resolveInstallationId(user);
+        reviewPublisher.publish(review, tokenService.getInstallationToken(installationId));
+        review.setStatus(ReviewStatus.PUBLISHED);
+        reviewRepository.save(review);
+        log.info("Published review {} for PR #{} to {}/{}", reviewId, review.getPrNumber(),
+                review.getThread().getRepositoryFullName());
+        return toResponse(review);
     }
 
     private void runPipeline(PrReview review, ChangeThread thread, String headSha, Long installationId) throws Exception {
@@ -156,6 +183,13 @@ public class PrReviewService {
     private void requireOwnedThread(User user, UUID threadId) {
         threadRepository.findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
+    }
+
+    private Long resolveInstallationId(User user) {
+        return installationRepository.findByUserId(user.getId()).stream()
+                .findFirst()
+                .map(GitHubAppInstallation::getInstallationId)
+                .orElseThrow(() -> new IllegalStateException("No GitHub App installation found for this user"));
     }
 
     private PrReviewResponse toResponse(PrReview review) {

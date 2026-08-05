@@ -44,27 +44,58 @@ class GitHubWebhookControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/webhooks/github returns 200 on valid ping")
-    void handleGitHubWebhook_ping_returns200() throws Exception {
+    @DisplayName("POST /api/v1/webhooks/github returns 202 Accepted for a new webhook")
+    void handleGitHubWebhook_newWebhook_returns202() throws Exception {
         WebhookResponse response = WebhookResponse.builder()
                 .id(UUID.randomUUID())
                 .installationId(12345L)
                 .eventType("ping")
-                .processed(true)
+                .processed(false)
                 .receivedAt(OffsetDateTime.now())
+                .replayed(false)
                 .build();
 
         when(webhookService.verifySignature(any(byte[].class), isNull())).thenReturn(true);
-        when(webhookService.processWebhook(eq("ping"), isNull(), isNull(), any(), isNull()))
+        when(webhookService.receiveWebhook(eq("ping"), isNull(), isNull(), any(), isNull()))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/webhooks/github")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("X-GitHub-Event", "ping")
                         .content("{}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Webhook accepted for processing"))
+                .andExpect(jsonPath("$.data.id").value(response.getId().toString()))
+                .andExpect(jsonPath("$.data.replayed").value(false));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/webhooks/github returns 200 with replayed=true for a duplicate delivery")
+    void handleGitHubWebhook_duplicateDelivery_returns200Replayed() throws Exception {
+        WebhookResponse response = WebhookResponse.builder()
+                .id(UUID.randomUUID())
+                .installationId(12345L)
+                .eventType("push")
+                .deliveryId("delivery-1")
+                .processed(true)
+                .receivedAt(OffsetDateTime.now())
+                .replayed(true)
+                .build();
+
+        when(webhookService.verifySignature(any(byte[].class), isNull())).thenReturn(true);
+        when(webhookService.receiveWebhook(eq("push"), eq("delivery-1"), isNull(), any(), isNull()))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/webhooks/github")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-GitHub-Event", "push")
+                        .header("X-GitHub-Delivery", "delivery-1")
+                        .content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("Webhook processed"));
+                .andExpect(jsonPath("$.message").value("Webhook already processed"))
+                .andExpect(jsonPath("$.data.replayed").value(true));
     }
 
     @Test
@@ -106,8 +137,8 @@ class GitHubWebhookControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/webhooks/github handles pull_request event")
-    void handleGitHubWebhook_pullRequest_returns200() throws Exception {
+    @DisplayName("POST /api/v1/webhooks/github accepts pull_request event with 202")
+    void handleGitHubWebhook_pullRequest_returns202() throws Exception {
         String payload = """
                 {
                     "action": "opened",
@@ -126,19 +157,20 @@ class GitHubWebhookControllerTest {
                 .installationId(12345L)
                 .eventType("pull_request")
                 .action("opened")
-                .processed(true)
+                .processed(false)
                 .receivedAt(OffsetDateTime.now())
+                .replayed(false)
                 .build();
 
         when(webhookService.verifySignature(any(byte[].class), isNull())).thenReturn(true);
-        when(webhookService.processWebhook(eq("pull_request"), isNull(), eq("opened"), any(), isNull()))
+        when(webhookService.receiveWebhook(eq("pull_request"), isNull(), eq("opened"), any(), isNull()))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/webhooks/github")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("X-GitHub-Event", "pull_request")
                         .content(payload))
-                .andExpect(status().isOk())
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.eventType").value("pull_request"))
                 .andExpect(jsonPath("$.data.action").value("opened"));

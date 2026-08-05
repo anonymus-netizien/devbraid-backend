@@ -17,6 +17,7 @@ import com.devbraid.github.dto.response.ChangedFileDto;
 import com.devbraid.github.dto.response.CommitSummaryDto;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.github.service.GitHubConnectionService;
+import com.devbraid.githubapp.GitHubAppTokenService;
 import com.devbraid.user.entity.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,7 @@ public class ChangeThreadService {
     private final ChangeThreadRepository threadRepository;
     private final DecisionNoteRepository noteRepository;
     private final GitHubConnectionService gitHubConnectionService;
+    private final GitHubAppTokenService gitHubAppTokenService;
     private final GitHubApiClient gitHubApiClient;
     private final ObjectMapper objectMapper;
     private final RiskAnalysisService riskAnalysisService;
@@ -65,7 +67,28 @@ public class ChangeThreadService {
     @Transactional
     public ThreadResponse createThread(User user, CreateThreadRequest req) {
         String decryptedPat = gitHubConnectionService.getDecryptedPatForUser(user);
+        return createThreadInternal(user, decryptedPat, req);
+    }
 
+    /**
+     * Create a new Change Thread from a GitHub App webhook delivery, using the
+     * installation's access token instead of a user PAT. Requires no
+     * {@code github_connections} row — the installation id already identifies
+     * the App install for the repository.
+     *
+     * @param user           the user the thread is created for (from the installation)
+     * @param installationId GitHub App installation id for the repository
+     * @param req            thread creation request
+     * @return created thread response
+     * @throws GitHubAppTokenException if the App installation token cannot be obtained
+     */
+    @Transactional
+    public ThreadResponse createThreadForInstallation(User user, Long installationId, CreateThreadRequest req) {
+        String installationToken = gitHubAppTokenService.getInstallationToken(installationId);
+        return createThreadInternal(user, installationToken, req);
+    }
+
+    private ThreadResponse createThreadInternal(User user, String accessToken, CreateThreadRequest req) {
         String[] parts = req.getRepositoryFullName().split("/");
         if (parts.length != 2) {
             throw new IllegalArgumentException("Invalid repository format. Use 'owner/repo'");
@@ -78,33 +101,7 @@ public class ChangeThreadService {
             baseBranch = "main";
         }
 
-        // Fetch diff from GitHub — single branch vs cross-branch compare
-        List<CommitSummaryDto> commits = null;
-        List<ChangedFileDto> changedFiles = null;
-        String latestCommitSha = null;
-
-        if (req.getHeadBranch().equalsIgnoreCase(baseBranch)) {
-            // Single-Branch Mode: fetch recent commits directly for this branch
-            List<CommitSummaryDto> branchCommits =
-                    gitHubApiClient.listCommits(decryptedPat, owner, repo, req.getHeadBranch(), 20);
-            if (branchCommits != null && !branchCommits.isEmpty()) {
-                commits = branchCommits;
-                latestCommitSha = branchCommits.get(0).getSha();
-            }
-        } else {
-            // Cross-Branch Compare Mode
-            GitHubCompareResponse compare = gitHubApiClient.compare(
-                    decryptedPat, owner, repo, baseBranch, req.getHeadBranch()
-            );
-            if (compare != null) {
-                commits = compare.getCommits();
-                changedFiles = compare.getFiles();
-                if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
-                    latestCommitSha = compare.getCommits()
-                            .get(compare.getCommits().size() - 1).getSha();
-                }
-            }
-        }
+        ThreadData data = fetchThreadData(accessToken, owner, repo, baseBranch, req.getHeadBranch());
 
         ChangeThread thread = ChangeThread.builder()
                 .user(user)
@@ -113,9 +110,9 @@ public class ChangeThreadService {
                 .baseBranch(baseBranch)
                 .title(req.getTitle())
                 .description(req.getDescription())
-                .commitSha(latestCommitSha)
-                .commits(commits)
-                .changedFiles(changedFiles)
+                .commitSha(data.latestCommitSha())
+                .commits(data.commits())
+                .changedFiles(data.changedFiles())
                 .build();
 
         thread = threadRepository.save(thread);
@@ -128,6 +125,41 @@ public class ChangeThreadService {
                 null);
 
         return toResponse(thread);
+    }
+
+    /**
+     * Fetch the commit/diff data for a thread from GitHub — shared by the PAT
+     * path and the App-installation-token path.
+     */
+    private ThreadData fetchThreadData(String accessToken, String owner, String repo, String baseBranch, String headBranch) {
+        // Fetch diff from GitHub — single branch vs cross-branch compare
+        List<CommitSummaryDto> commits = null;
+        List<ChangedFileDto> changedFiles = null;
+        String latestCommitSha = null;
+
+        if (headBranch.equalsIgnoreCase(baseBranch)) {
+            // Single-Branch Mode: fetch recent commits directly for this branch
+            List<CommitSummaryDto> branchCommits =
+                    gitHubApiClient.listCommits(accessToken, owner, repo, headBranch, 20);
+            if (branchCommits != null && !branchCommits.isEmpty()) {
+                commits = branchCommits;
+                latestCommitSha = branchCommits.get(0).getSha();
+            }
+        } else {
+            // Cross-Branch Compare Mode
+            GitHubCompareResponse compare = gitHubApiClient.compare(
+                    accessToken, owner, repo, baseBranch, headBranch
+            );
+            if (compare != null) {
+                commits = compare.getCommits();
+                changedFiles = compare.getFiles();
+                if (compare.getCommits() != null && !compare.getCommits().isEmpty()) {
+                    latestCommitSha = compare.getCommits()
+                            .get(compare.getCommits().size() - 1).getSha();
+                }
+            }
+        }
+        return new ThreadData(commits, changedFiles, latestCommitSha);
     }
 
     @Transactional(readOnly = true)
@@ -312,6 +344,10 @@ public class ChangeThreadService {
         response.setThreadId(note.getThread().getId());
         response.setAuthorId(note.getAuthor().getId());
         return response;
+    }
+
+    private record ThreadData(List<CommitSummaryDto> commits, List<ChangedFileDto> changedFiles,
+                              String latestCommitSha) {
     }
 
 }
