@@ -86,12 +86,14 @@ public class GitHubOAuthService {
      */
     @Transactional
     public String completeOAuth(String code, String state) {
-        if (code == null || code.isBlank()) {
-            return errorRedirect();
-        }
+        // Consume the state first — it is single-use, and GitHub echoes it back even
+        // when the user denies the authorize screen (no code).
         OAuthState stored = consumeState(state);
         if (stored == null || stored.expiresAt().isBefore(OffsetDateTime.now())) {
             log.warn("GitHub OAuth callback with missing or expired state");
+            return errorRedirect();
+        }
+        if (code == null || code.isBlank()) {
             return errorRedirect();
         }
         try {

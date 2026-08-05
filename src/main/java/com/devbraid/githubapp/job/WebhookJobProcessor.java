@@ -17,9 +17,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Claims and processes a single due webhook job within its own transaction.
@@ -53,8 +53,9 @@ public class WebhookJobProcessor {
             return false;
         }
         WebhookJob job = claimed.get(0);
-        job.setStatus(JobStatus.PROCESSING);
-
+        // No PROCESSING write is persisted: a crash before the final save leaves the row
+        // PENDING with its due next_attempt_at, so the claim query re-picks it up
+        // (at-least-once). The claim query selects only status='PENDING' rows.
         try {
             dispatch(job);
             job.setStatus(JobStatus.SUCCEEDED);
@@ -71,8 +72,7 @@ public class WebhookJobProcessor {
             } else {
                 job.setStatus(JobStatus.PENDING);
                 long delayMillis = backoffBaseMs * (1L << (job.getAttempts() - 1));
-                job.setNextAttemptAt(OffsetDateTime.now()
-                        .plusNanos(TimeUnit.MILLISECONDS.toNanos(delayMillis)));
+                job.setNextAttemptAt(OffsetDateTime.now().plus(Duration.ofMillis(delayMillis)));
                 log.warn("Webhook job {} failed (attempt {} of {}), retrying in {}ms: {}",
                         job.getId(), job.getAttempts(), maxAttempts, delayMillis, e.getMessage());
             }
