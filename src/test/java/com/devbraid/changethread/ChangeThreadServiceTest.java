@@ -17,6 +17,8 @@ import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.github.exception.GitHubNotConnectedException;
 import com.devbraid.github.exception.GitHubTokenInvalidException;
 import com.devbraid.github.service.GitHubConnectionService;
+import com.devbraid.githubapp.GitHubAppTokenException;
+import com.devbraid.githubapp.GitHubAppTokenService;
 import com.devbraid.user.entity.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
@@ -60,6 +62,9 @@ class ChangeThreadServiceTest {
 
     @Mock
     private GitHubConnectionService gitHubConnectionService;
+
+    @Mock
+    private GitHubAppTokenService gitHubAppTokenService;
 
     @Mock
     private GitHubApiClient gitHubApiClient;
@@ -210,5 +215,78 @@ class ChangeThreadServiceTest {
                 .hasMessageContaining("Connect GitHub first");
 
         verify(threadRepository, never()).save(any());
+    }
+
+    @Test
+    @Order(5)
+    @DisplayName("createThreadForInstallation() persists thread using the App installation token — no PAT or github_connections row required")
+    void createThreadForInstallation_AppToken_PersistsThread() {
+        var compareResult = new GitHubCompareResponse();
+        compareResult.setStatus("diverged");
+        compareResult.setCommits(java.util.List.of(
+                new CommitSummaryDto("abc123", "feat: add feature", null)
+        ));
+        compareResult.setFiles(java.util.List.of(
+                new ChangedFileDto("src/main.java", "modified", 10, 2)
+        ));
+
+        when(gitHubAppTokenService.getInstallationToken(99L)).thenReturn("app-install-token");
+        when(gitHubApiClient.compare(eq("app-install-token"), eq("test-owner"), eq("test-repo"),
+                eq("main"), eq("feature/test"))).thenReturn(compareResult);
+        when(noteRepository.findByThreadIdOrderByCreatedAtDesc(any())).thenReturn(java.util.List.of());
+        stubThreadSaveWithId();
+
+        CreateThreadRequest request = new CreateThreadRequest(
+                "test-owner/test-repo", "feature/test", "main", "App Token Thread", null
+        );
+
+        ThreadResponse response = threadService.createThreadForInstallation(testUser, 99L, request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getTitle()).isEqualTo("App Token Thread");
+        assertThat(response.getCommitSha()).isEqualTo("abc123");
+        assertThat(response.getStatus()).isEqualTo(ThreadStatus.DRAFT);
+
+        verify(gitHubAppTokenService).getInstallationToken(99L);
+        verify(gitHubApiClient).compare(eq("app-install-token"), eq("test-owner"), eq("test-repo"),
+                eq("main"), eq("feature/test"));
+        verify(gitHubConnectionService, never()).getDecryptedPatForUser(any());
+        verify(threadRepository).save(any(ChangeThread.class));
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("createThreadForInstallation() propagates GitHubAppTokenException when the App token exchange fails")
+    void createThreadForInstallation_TokenFailure_ThrowsException() {
+        when(gitHubAppTokenService.getInstallationToken(99L))
+                .thenThrow(new GitHubAppTokenException("GitHub App token exchange failed: HTTP 401"));
+
+        CreateThreadRequest request = new CreateThreadRequest(
+                "test-owner/test-repo", "feature/test", "main", "Token Failure", null
+        );
+
+        assertThatThrownBy(() -> threadService.createThreadForInstallation(testUser, 99L, request))
+                .isInstanceOf(GitHubAppTokenException.class)
+                .hasMessageContaining("token exchange failed");
+
+        verify(gitHubConnectionService, never()).getDecryptedPatForUser(any());
+        verify(gitHubApiClient, never()).compare(any(), any(), any(), any(), any());
+        verify(threadRepository, never()).save(any());
+    }
+
+    private void stubThreadSaveWithId() {
+        when(threadRepository.save(any(ChangeThread.class))).thenAnswer(invocation -> {
+            ChangeThread thread = invocation.getArgument(0);
+            var field = ChangeThread.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(thread, UUID.randomUUID());
+            var createdAt = ChangeThread.class.getDeclaredField("createdAt");
+            createdAt.setAccessible(true);
+            createdAt.set(thread, OffsetDateTime.now());
+            var updatedAt = ChangeThread.class.getDeclaredField("updatedAt");
+            updatedAt.setAccessible(true);
+            updatedAt.set(thread, OffsetDateTime.now());
+            return thread;
+        });
     }
 }
