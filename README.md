@@ -4,9 +4,9 @@ Spring Boot 4.1.0 backend for the DevBraid platform — capturing **why** code c
 
 ## Prerequisites
 
-- **Java 17+**
-- **Maven 3.8+** (or use `./mvnw`)
-- **Docker & Docker Compose**
+- **Java 21**
+- **Maven 3.8+** (system Maven — the `./mvnw` wrapper is currently broken, see Testing)
+- **Docker & Docker Compose** (required — infra stack AND the Testcontainers test suite)
 - **Git**
 
 ## Quick Start
@@ -22,7 +22,7 @@ docker compose up -d --build
 
 # Or run locally
 docker compose up -d postgres redis
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 **Backend:** `http://localhost:8080` · **pgAdmin:** `http://localhost:5050`
@@ -31,15 +31,15 @@ docker compose up -d postgres redis
 
 | Component  | Technology                                |
 |------------|-------------------------------------------|
-| Runtime    | Java 17                                   |
+| Runtime    | Java 21                                   |
 | Framework  | Spring Boot 4.1.0                         |
 | ORM        | Spring Data JPA + Hibernate               |
-| Database   | PostgreSQL 18 (Flyway migrations)         |
-| Cache      | Redis 7 (OTP, rate limiting)              |
+| Database   | PostgreSQL 18 (Flyway migrations V1–V20)  |
+| Cache      | Redis 7 (OTP, rate limiting, GitHub App tokens) |
 | Auth       | JWT (HMAC256) + OTP (email-based)         |
 | AI         | OpenAI (optional, graceful degradation)   |
 | Encryption | AES-256-GCM for GitHub PATs               |
-| Testing    | JUnit 5 + Mockito + WireMock (~130 tests) |
+| Testing    | JUnit 5 + Mockito + WireMock + Testcontainers (~400 tests) |
 
 ## Modules
 
@@ -70,7 +70,7 @@ See `docs/PROJECT_DOCUMENTATION.md` for full API documentation with request/resp
 
 ## Database
 
-6 Flyway migrations (V1–V6):
+20 Flyway migrations (V1–V9, V12–V20; V10 & V11 skipped):
 
 | Table                | Purpose                                                  |
 |----------------------|----------------------------------------------------------|
@@ -80,6 +80,8 @@ See `docs/PROJECT_DOCUMENTATION.md` for full API documentation with request/resp
 | `change_threads`     | Workspaces with JSONB commits/diffs/risk reports         |
 | `decision_notes`     | Why-decisions (context, rationale, alternatives, impact) |
 | `change_briefs`      | AI-generated markdown briefs (1:1 with threads)          |
+
+> V7–V9 and V12–V20 add thread snapshots/file comments/events, audit logs, indexing, GitHub App tables + webhook jobs (V19) + OAuth identities (V20), PR reviews, API keys — see `memory.md` §4.2 for the full schema.
 
 ## Configuration
 
@@ -92,9 +94,12 @@ See `docs/PROJECT_DOCUMENTATION.md` for full API documentation with request/resp
 ## Testing
 
 ```bash
-./mvnw test                           # 127/127 tests
-./mvnw test -Dtest=ChangeThreadServiceTest  # Single class
+mvn test                                   # full suite (~400 tests) — requires Docker (Testcontainers)
+mvn test -Dtest=WebhookJobDurableStateIntegrationTest   # single class
 ```
+
+> Note: use system Maven — the `./mvnw` wrapper is broken (missing `.mvn/wrapper/maven-wrapper.properties`, restore is P2).
+> Since 2026-08-05 the suite includes PG-backed Testcontainers tests (`WebhookJobDurableStateIntegrationTest`, `postgres:18-alpine` + `redis:7-alpine`) — a running Docker daemon is required.
 
 ## Docker
 
