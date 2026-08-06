@@ -1,6 +1,6 @@
 CREATE TABLE refresh_tokens
 (
-    id         UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
+    id         UUID PRIMARY KEY     DEFAULT uuidv7(),
     token_hash VARCHAR(64) NOT NULL,
     user_id    UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     expires_at TIMESTAMPTZ NOT NULL,

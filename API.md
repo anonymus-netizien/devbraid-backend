@@ -341,7 +341,7 @@ A note captures a decision ("why") anchored to a `COMMIT`, `FILE` or `THREAD`.
 
 ## 5. Entities & Database Schema
 
-6 Flyway migrations (V1–V7). All PKs default to `gen_random_uuid()` (PostgreSQL ≥ 13 — Neon compatible).
+6 Flyway migrations (V1–V7). All PKs default to `uuidv7()` (PostgreSQL 18 built-in — Neon supports PG 18).
 
 ### 5.1 ERD
 
