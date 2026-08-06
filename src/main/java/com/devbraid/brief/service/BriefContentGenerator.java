@@ -1,9 +1,9 @@
 package com.devbraid.brief.service;
 
-import com.devbraid.ai.fallback.FallbackMethod;
 import com.devbraid.ai.service.AIProvider;
 import com.devbraid.ai.service.PromptBuilder;
 import com.devbraid.changethread.entity.ChangeThread;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -18,26 +18,28 @@ public class BriefContentGenerator {
 
     /**
      * Generate brief content via AI, falling back to the template on AI failure
-     * (handled by {@code @FallbackMethod} aspect — no try/catch in services).
-     * Also falls back to the template when AI output lacks citation/inference markers.
-     *
-     * @throws Exception if AI fails and the fallback aspect is not active
+     * or when the output lacks citation/inference markers.
      */
-    @FallbackMethod(method = "buildTemplate")
-    public String generateContent(ChangeThread thread) throws Exception {
-        String content = aiProvider.analyze(promptBuilder.buildBriefPrompt(thread));
-        if (!isEvidenceBacked(content)) {
-            log.warn("AI brief output missing citation/inference markers — using template fallback");
-            return promptBuilder.buildTemplateBrief(thread);
+    public String generateContent(ChangeThread thread) {
+        try {
+            String content = aiProvider.analyze(promptBuilder.buildBriefPrompt(thread));
+            if (!isEvidenceBacked(content)) {
+                log.warn("AI brief output missing citation/inference markers — using template fallback");
+                return buildTemplate(thread);
+            }
+            return content;
+        } catch (Exception ex) {
+            log.warn("AI brief generation failed — using template fallback: {}", ex.getMessage());
+            return buildTemplate(thread);
         }
-        return content;
     }
 
-    /**
-     * Fallback invoked by the aspect when AI fails.
-     */
-    public String buildTemplate(ChangeThread thread) throws Exception {
-        return promptBuilder.buildTemplateBrief(thread);
+    private String buildTemplate(ChangeThread thread) {
+        try {
+            return promptBuilder.buildTemplateBrief(thread);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Template brief generation failed", ex);
+        }
     }
 
     private boolean isEvidenceBacked(String content) {

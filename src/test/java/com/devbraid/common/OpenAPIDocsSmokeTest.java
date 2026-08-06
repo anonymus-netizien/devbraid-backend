@@ -27,8 +27,7 @@ class OpenAPIDocsSmokeTest {
                 .andExpect(jsonPath("$.openapi").value("3.1.0"))
                 .andExpect(jsonPath("$.info.title").value("DevBraid API"))
                 .andExpect(jsonPath("$.paths").isNotEmpty())
-                .andExpect(jsonPath("$.components.securitySchemes['bearer-jwt'].type").value("http"))
-                .andExpect(jsonPath("$.components.securitySchemes['api-key'].in").value("header"));
+                .andExpect(jsonPath("$.components.securitySchemes['bearer-jwt'].type").value("http"));
     }
 
     @Test

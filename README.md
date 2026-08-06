@@ -1,11 +1,16 @@
 # DevBraid Backend
 
-Spring Boot 4.1.0 backend for the DevBraid platform — capturing **why** code changes happen.
+Spring Boot 4.1.0 backend for the DevBraid platform — capturing **why** code changes happen along a five-step flow:
+
+**Connect → Capture → Analyze → Reason → Publish**
+
+A developer connects a GitHub repo (PAT), creates a Change Thread to capture commits/diffs + decision notes, runs
+deterministic risk analysis, generates an AI change brief, and publishes it to a GitHub PR after human approval.
 
 ## Prerequisites
 
-- **Java 17+**
-- **Maven 3.8+** (or use `./mvnw`)
+- **Java 21**
+- **Maven 3.8+**
 - **Docker & Docker Compose**
 - **Git**
 
@@ -20,9 +25,9 @@ cp .env.example .env   # Edit with your credentials
 # Start infrastructure + app
 docker compose up -d --build
 
-# Or run locally
+# Or run locally (the ./mvnw wrapper is broken — use system Maven)
 docker compose up -d postgres redis
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 **Backend:** `http://localhost:8080` · **pgAdmin:** `http://localhost:5050`
@@ -31,15 +36,15 @@ docker compose up -d postgres redis
 
 | Component  | Technology                                |
 |------------|-------------------------------------------|
-| Runtime    | Java 17                                   |
+| Runtime    | Java 21                                   |
 | Framework  | Spring Boot 4.1.0                         |
 | ORM        | Spring Data JPA + Hibernate               |
 | Database   | PostgreSQL 18 (Flyway migrations)         |
 | Cache      | Redis 7 (OTP, rate limiting)              |
 | Auth       | JWT (HMAC256) + OTP (email-based)         |
-| AI         | OpenAI (optional, graceful degradation)   |
+| AI         | OpenAI / Groq / OpenRouter (optional, graceful degradation) |
 | Encryption | AES-256-GCM for GitHub PATs               |
-| Testing    | JUnit 5 + Mockito + WireMock (~130 tests) |
+| Testing    | JUnit 5 + Mockito + WireMock (246 tests)  |
 
 ## Modules
 
@@ -60,13 +65,15 @@ com.devbraid
 
 | Module  | Base Path                                     | Methods                                                           |
 |---------|-----------------------------------------------|-------------------------------------------------------------------|
-| Auth    | `/api/v1/auth`                                | register, login, logout, refresh, me, profile, password, otp/*    |
+| Auth    | `/api/v1/auth`                                | register, login, logout, refresh, otp/*                           |
+| User    | `/api/v1/user`                                | profile (GET/PUT), password                                       |
 | GitHub  | `/api/v1/github`                              | connect, disconnect, status, repos, repos/{owner}/{repo}/branches |
 | Threads | `/api/v1/threads`                             | CRUD + refresh, analyze, brief, publish                           |
 | Notes   | `/api/v1/threads/{id}/notes`, `/api/v1/notes` | CRUD (thread-scoped + global list)                                |
 | Briefs  | `/api/v1/briefs`                              | list, get by ID                                                   |
 
-See `docs/PROJECT_DOCUMENTATION.md` for full API documentation with request/response examples.
+See [`API.md`](API.md) for full API documentation with request/response examples, and run the app locally to browse
+the live OpenAPI spec at `http://localhost:8080/swagger-ui.html`.
 
 ## Database
 
@@ -83,17 +90,23 @@ See `docs/PROJECT_DOCUMENTATION.md` for full API documentation with request/resp
 
 ## Configuration
 
-| Profile | DDL      | CORS                     | JWT         | DB Pool |
-|---------|----------|--------------------------|-------------|---------|
-| `dev`   | update   | localhost:3000,5173,4200 | dev default | 5       |
-| `stage` | validate | staging.devbraid.com     | required    | 15      |
-| `prod`  | validate | app.devbraid.com         | required    | 25      |
+| Profile | DDL      | CORS                     | JWT         | Redis               | DB Pool |
+|---------|----------|--------------------------|-------------|---------------------|---------|
+| `dev`   | update   | localhost:3000,5173,4200 | dev default | localhost defaults  | 5       |
+| `stage` | validate | staging.devbraid.com     | env required| env-driven (defaults) | 15    |
+| `prod`  | validate | devbraid.com             | env required| env required (fail-fast) | 25 |
+
+Environment notes:
+
+- The DB and Redis credentials come from env vars (`DEV_*`, `STAGE_*`, `PROD_*`) — see `.env.example`. `prod` has **no defaults** for `PROD_DB_URL`/`PROD_REDIS_HOST`/`PROD_JWT_SECRET`: the app fails fast at startup if they are unset.
+- No Spring `context-path` is set in any profile — controllers map `/api/v1/...` themselves, so the API is at `/api/v1` in all environments (the old `/api` context-path produced `/api/api/v1` in prod).
+- PostgreSQL 18 is required because the migrations use the built-in `uuidv7()` default. Both prod and stage run `ddl-auto: validate`, so the schema must match V1–V6 exactly.
 
 ## Testing
 
 ```bash
-./mvnw test                           # 127/127 tests
-./mvnw test -Dtest=ChangeThreadServiceTest  # Single class
+mvn test                           # 246 tests (all green)
+mvn test -Dtest=ChangeThreadServiceTest  # Single class
 ```
 
 ## Docker
@@ -112,11 +125,12 @@ docker compose down -v          # Stop + remove data
 - Refresh token rotation (old deleted on use)
 - AES-256-GCM PAT encryption with per-record IVs
 - OTP rate limiting (3/min via Redis)
+- Login/register rate limiting (Redis: per-user + per-IP, 429 on exceed)
 - Sensitive header redaction in logs
 - Ownership checks (`findByIdAndUserId`) on all resources
+- Unauthenticated requests get a JSON `401` (not the Spring default 403)
 
 ## Project Docs
 
-- `docs/PROJECT_DOCUMENTATION.md` — Complete consolidated documentation
-- `docs/reports/2026-07-29-e2e-test-report.md` — E2E test report
-- `.env.example` — All environment variables documented
+- [`API.md`](API.md) — Full API documentation (endpoints, auth flow, errors)
+- `.env.example` — All environment variables documented per profile

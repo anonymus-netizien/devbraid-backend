@@ -69,11 +69,16 @@ class BriefContentGeneratorTest {
     }
 
     @Test
-    @DisplayName("buildTemplate returns the template brief")
-    void buildTemplate_returnsTemplate() throws Exception {
+    @DisplayName("AI provider failure falls back to the template")
+    void generateContent_providerThrows_fallsBackToTemplate() throws Exception {
+        when(promptBuilder.buildBriefPrompt(any(ChangeThread.class))).thenReturn("prompt");
+        when(aiProvider.analyze("prompt")).thenThrow(new RuntimeException("provider down"));
         when(promptBuilder.buildTemplateBrief(any(ChangeThread.class))).thenReturn("Template content");
 
-        assertThat(briefContentGenerator.buildTemplate(thread())).isEqualTo("Template content");
+        String content = briefContentGenerator.generateContent(thread());
+
+        assertThat(content).isEqualTo("Template content");
+        verify(promptBuilder).buildTemplateBrief(any(ChangeThread.class));
     }
 
     @Test

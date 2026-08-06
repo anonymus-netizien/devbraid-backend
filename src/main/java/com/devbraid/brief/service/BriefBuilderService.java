@@ -43,7 +43,7 @@ public class BriefBuilderService {
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
 
-        // ponytail: AI failures fall back to the template via @FallbackMethod (aspect), not try/catch.
+        // ponytail: AI failures fall back to the template via try/catch in BriefContentGenerator.
         String content = briefContentGenerator.generateContent(thread);
 
         // Check if brief already exists

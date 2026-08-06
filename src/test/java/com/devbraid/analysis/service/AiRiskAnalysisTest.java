@@ -45,8 +45,13 @@ class AiRiskAnalysisTest {
     }
 
     @Test
-    @DisplayName("noAiAnalysis() returns null — deterministic-only fallback for the aspect")
-    void noAiAnalysis_returnsNull() {
-        assertThat(aiRiskAnalysis.noAiAnalysis(commits, changedFiles, flags)).isNull();
+    @DisplayName("analyze() returns null when the provider fails — deterministic-only fallback")
+    void analyze_returnsNullOnFailure() throws Exception {
+        when(promptBuilder.buildAnalysisPrompt(anyList(), anyList(), any())).thenReturn("prompt");
+        when(aiProvider.analyze("prompt")).thenThrow(new RuntimeException("provider down"));
+
+        String result = aiRiskAnalysis.analyze(commits, changedFiles, flags);
+
+        assertThat(result).isNull();
     }
 }

@@ -31,7 +31,6 @@ import java.util.List;
 @Slf4j
 @Tag(name = "GitHub Connection", description = "Connect a GitHub account with a personal access token, then browse the connected account's repositories and branches.")
 @SecurityRequirement(name = "bearer-jwt")
-@SecurityRequirement(name = "api-key")
 public class GitHubConnectionController {
 
     private final GitHubConnectionService gitHubConnectionService;

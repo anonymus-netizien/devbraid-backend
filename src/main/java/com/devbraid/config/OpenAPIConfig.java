@@ -1,7 +1,6 @@
 package com.devbraid.config;
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.info.Contact;
 import io.swagger.v3.oas.annotations.info.Info;
@@ -14,9 +13,9 @@ import org.springframework.context.annotation.Configuration;
  * OpenAPI 3 documentation configuration for the DevBraid API.
  *
  * <p>Generates the OpenAPI specification served at {@code /v3/api-docs} and renders
- * the interactive Swagger UI at {@code /swagger-ui.html}. Both JWT bearer tokens and
- * {@code X-API-Key} headers are declared as security schemes; each protected
- * controller/operation opts in via {@code @SecurityRequirement}.
+ * the interactive Swagger UI at {@code /swagger-ui.html}. The JWT bearer token is
+ * declared as the security scheme; each protected controller/operation opts in via
+ * {@code @SecurityRequirement}.
  */
 @Configuration
 @OpenAPIDefinition(
@@ -25,19 +24,18 @@ import org.springframework.context.annotation.Configuration;
                 version = "v1",
                 description = """
                         DevBraid captures the *why* behind code changes. Developers connect a GitHub
-                        repository, create **Change Threads** describing a change (branch pair), and the
-                        platform pulls commits and diffs, runs deterministic + AI risk analysis, generates
-                        Markdown change briefs, publishes them as GitHub PR comments, and tracks decision
-                        notes.
-
+                        repository with a personal access token, create **Change Threads** describing a
+                        change (branch pair), and the platform pulls commits and diffs, runs deterministic
+                        risk analysis, generates Markdown change briefs (AI or template), and publishes them
+                        back to GitHub as PR comments after human approval.
+                        
                         ## Authentication
-
-                        All endpoints except `POST /api/v1/auth/*` and `POST /api/v1/webhooks/*` require
-                        either a JWT bearer token (obtained from `POST /api/v1/auth/login`) or an API key
-                        (`X-API-Key` header). Click **Authorize** and choose one of the two schemes.
-
+                        
+                        All endpoints except `POST /api/v1/auth/*` require a JWT bearer token obtained from
+                        `POST /api/v1/auth/login`. Click **Authorize** and enter your access token.
+                        
                         ## Response envelope
-
+                        
                         Every endpoint returns an `ApiResponse` wrapper: `{ "success": boolean,
                         "message": string, "data": T | null }`. Errors are mapped to standard HTTP status
                         codes by the global exception handler (400, 401, 403, 404, 409, 410, 429, 500).
@@ -57,11 +55,5 @@ import org.springframework.context.annotation.Configuration;
         bearerFormat = "JWT",
         description = "JWT access token returned by POST /api/v1/auth/login. Set the refresh token "
                 + "cookie separately; the access token is supplied in the Authorization header.")
-@SecurityScheme(
-        name = "api-key",
-        type = SecuritySchemeType.APIKEY,
-        in = SecuritySchemeIn.HEADER,
-        paramName = "X-API-Key",
-        description = "Machine-to-machine API key created via POST /api/v1/api-keys.")
 public class OpenAPIConfig {
 }

@@ -134,20 +134,6 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- JavaParser AST engine for Java codebase indexing -->
-        <!-- ponytail: core only, no symbol-solver — structural extraction suffices -->
-        <dependency>
-            <groupId>com.github.javaparser</groupId>
-            <artifactId>javaparser-core</artifactId>
-            <version>3.26.4</version>
-        </dependency>
-
-        <!-- STOMP over WebSocket for real-time thread status updates -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-websocket</artifactId>
-        </dependency>
-
         <!-- OpenAPI 3 + Swagger UI documentation (springdoc 3.x for Spring Boot 4.x) -->
         <dependency>
             <groupId>org.springdoc</groupId>

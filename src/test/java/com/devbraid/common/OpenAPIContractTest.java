@@ -60,10 +60,9 @@ class OpenAPIContractTest {
                 .getContentAsString();
 
         assertThat(spec).contains("bearer-jwt");
-        assertThat(spec).contains("api-key");
         assertThat(spec).contains("\"tags\"");
         assertThat(spec).contains("Authentication");
         assertThat(spec).contains("Change Threads");
-        assertThat(spec).contains("GitHub Webhooks");
+        assertThat(spec).contains("GitHub Connection");
     }
 }

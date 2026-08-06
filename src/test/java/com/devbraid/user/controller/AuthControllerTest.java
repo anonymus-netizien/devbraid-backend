@@ -3,7 +3,9 @@ package com.devbraid.user.controller;
 import com.devbraid.common.exception.GlobalExceptionHandler;
 import com.devbraid.user.dto.request.*;
 import com.devbraid.user.dto.response.LoginResponse;
+import com.devbraid.user.exception.RateLimitExceededException;
 import com.devbraid.user.exception.UserAlreadyExistsException;
+import com.devbraid.user.service.AuthRateLimiter;
 import com.devbraid.user.service.OtpService;
 import com.devbraid.user.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,11 +49,13 @@ class AuthControllerTest {
     private UserService userService;
     @Mock
     private OtpService otpService;
+    @Mock
+    private AuthRateLimiter authRateLimiter;
     private AuthController authController;
 
     @BeforeEach
     void setUp() {
-        authController = new AuthController(userService, otpService);
+        authController = new AuthController(userService, otpService, authRateLimiter);
         ReflectionTestUtils.setField(authController, "refreshExpirationMs", 604800000L);
         mockMvc = MockMvcBuilders
                 .standaloneSetup(authController)
@@ -135,6 +139,23 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/v1/auth/register returns 429 when rate limited")
+    void register_RateLimited_Returns429() throws Exception {
+        doThrow(new RateLimitExceededException("Too many attempts. Please try again later."))
+                .when(authRateLimiter).checkRegister(EMAIL, "127.0.0.1");
+
+        String body = objectMapper.writeValueAsString(new RegisterRequest(FULL_NAME, EMAIL, PASSWORD));
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.success").value(false));
+
+        verify(userService, never()).register(any(RegisterRequest.class));
+    }
+
+    @Test
     @DisplayName("POST /api/v1/auth/login returns 200 OK with accessToken in body and refreshToken in httpOnly cookie")
     void login_Returns200WithLoginResponse() throws Exception {
         LoginResponse loginResponse = new LoginResponse(
@@ -168,6 +189,23 @@ class AuthControllerTest {
                 });
 
         verify(userService).login(EMAIL, PASSWORD);
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/auth/login returns 429 when rate limited")
+    void login_RateLimited_Returns429() throws Exception {
+        doThrow(new RateLimitExceededException("Too many attempts. Please try again later."))
+                .when(authRateLimiter).checkLogin(EMAIL, "127.0.0.1");
+
+        String body = objectMapper.writeValueAsString(new LoginRequest(EMAIL, PASSWORD));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.success").value(false));
+
+        verify(userService, never()).login(EMAIL, PASSWORD);
     }
 
     // NOTE: GET /auth/me test removed — endpoint moved to UserController /api/v1/user/profile

@@ -1,11 +1,10 @@
 package com.devbraid.security;
 
-import com.devbraid.apikey.security.ApiKeyAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -21,12 +20,10 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:5173,http://localhost:4200}")
     private String allowedOrigins;
@@ -42,6 +39,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.setCharacterEncoding("UTF-8");
+                    response.getWriter().write("{\"success\":false,\"message\":\"Unauthenticated\",\"data\":null}");
+                }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 // Auth endpoints — public
@@ -51,10 +54,6 @@ public class SecurityConfig {
                                 "/api/v1/auth/logout",
                                 "/api/v1/auth/otp/send",
                                 "/api/v1/auth/otp/verify",
-                                // GitHub webhooks — unauthenticated (HMAC signature verification)
-                                "/api/v1/webhooks/**",
-                                // GitHub App OAuth callback — GitHub redirects the browser here
-                                "/api/v1/github-app/oauth/callback",
                                 // OpenAPI docs + Swagger UI — unauthenticated
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -62,7 +61,6 @@ public class SecurityConfig {
                         ).permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(apiKeyAuthenticationFilter, JwtAuthenticationFilter.class)
                 .build();
     }
 

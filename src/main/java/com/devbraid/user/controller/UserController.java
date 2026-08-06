@@ -27,9 +27,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/user")
 @RequiredArgsConstructor
-@Tag(name = "User", description = "Current user's profile and password management (JWT or API key required).")
+@Tag(name = "User", description = "Current user's profile and password management (JWT required).")
 @SecurityRequirement(name = "bearer-jwt")
-@SecurityRequirement(name = "api-key")
 public class UserController {
 
     private final UserService userService;

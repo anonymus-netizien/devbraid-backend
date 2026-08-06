@@ -55,10 +55,6 @@ public class AIConfig {
         return provider;
     }
 
-    public boolean isAnyConfigured() {
-        return isOpenAiConfigured() || isGroqConfigured() || isOpenRouterConfigured();
-    }
-
     // ── OpenAI ──
 
     public String getOpenAiApiKey() {
@@ -71,14 +67,6 @@ public class AIConfig {
 
     public String getOpenAiBaseUrl() {
         return openAiBaseUrl;
-    }
-
-    public boolean isOpenAiConfigured() {
-        return isOpenAiConfigured0();
-    }
-
-    private boolean isOpenAiConfigured0() {
-        return openAiApiKey != null && !openAiApiKey.isBlank();
     }
 
     // ── Groq ──
@@ -95,10 +83,6 @@ public class AIConfig {
         return groqBaseUrl;
     }
 
-    public boolean isGroqConfigured() {
-        return groqApiKey != null && !groqApiKey.isBlank();
-    }
-
     // ── OpenRouter ──
 
     public String getOpenRouterApiKey() {
@@ -111,10 +95,6 @@ public class AIConfig {
 
     public String getOpenRouterBaseUrl() {
         return openRouterBaseUrl;
-    }
-
-    public boolean isOpenRouterConfigured() {
-        return openRouterApiKey != null && !openRouterApiKey.isBlank();
     }
 
     // ── Timeout ──

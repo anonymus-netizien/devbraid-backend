@@ -32,7 +32,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Tag(name = "Change Briefs", description = "Generated Markdown change briefs. Generation and publishing happen on the thread resource; these endpoints list and fetch briefs directly.")
 @SecurityRequirement(name = "bearer-jwt")
-@SecurityRequirement(name = "api-key")
 public class ChangeBriefController {
 
     private final BriefBuilderService briefBuilderService;

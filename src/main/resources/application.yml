@@ -59,11 +59,6 @@ app:
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
   api:
     version: ${API_VERSION:v1}
-  webhook-jobs:
-    poll-interval-ms: ${WEBHOOK_JOBS_POLL_INTERVAL_MS:2000}
-    batch-size: ${WEBHOOK_JOBS_BATCH_SIZE:5}
-    max-attempts: ${WEBHOOK_JOBS_MAX_ATTEMPTS:5}
-    backoff-base-ms: ${WEBHOOK_JOBS_BACKOFF_BASE_MS:2000}
 
 # AI Provider Configuration
 # Set ai.provider to: openai | groq | openrouter
@@ -82,15 +77,3 @@ ai:
     api-key: ${OPENROUTER_API_KEY:}
     model: ${OPENROUTER_MODEL:meta-llama/llama-3.3-70b-instruct:free}
     base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
-
-# GitHub App Configuration
-github:
-  app:
-    app-id: ${GITHUB_APP_ID:}
-    private-key: ${GITHUB_APP_PRIVATE_KEY:}
-    webhook-secret: ${GITHUB_APP_WEBHOOK_SECRET:}
-  oauth:
-    client-id: ${GITHUB_CLIENT_ID:}
-    client-secret: ${GITHUB_CLIENT_SECRET:}
-    callback-base-url: ${GITHUB_OAUTH_CALLBACK_BASE_URL:http://localhost:8080}
-    frontend-url: ${FRONTEND_URL:http://localhost:3000}

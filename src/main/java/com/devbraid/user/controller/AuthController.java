@@ -7,6 +7,7 @@ import com.devbraid.user.dto.request.*;
 import com.devbraid.user.dto.response.LoginResponse;
 import com.devbraid.user.dto.response.OtpSendResponse;
 import com.devbraid.user.dto.response.OtpVerifyResponse;
+import com.devbraid.user.service.AuthRateLimiter;
 import com.devbraid.user.service.OtpService;
 import com.devbraid.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,13 +34,15 @@ public class AuthController {
 
     private final UserService userService;
     private final OtpService otpService;
+    private final AuthRateLimiter authRateLimiter;
 
     @Value("${app.jwt.refresh-expiration:604800000}")
     private long refreshExpirationMs;
 
-    public AuthController(UserService userService, OtpService otpService) {
+    public AuthController(UserService userService, OtpService otpService, AuthRateLimiter authRateLimiter) {
         this.userService = userService;
         this.otpService = otpService;
+        this.authRateLimiter = authRateLimiter;
     }
 
     @PostMapping("/otp/send")
@@ -94,9 +97,13 @@ public class AuthController {
             content = @Content(schema = @Schema(implementation = ApiResponse.class)))
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "User with this email already exists",
             content = @Content(schema = @Schema(implementation = ApiResponse.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "Too many registration attempts — rate limit exceeded",
+            content = @Content(schema = @Schema(implementation = ApiResponse.class)))
     @ApiErrorResponses
-    public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<ApiResponse<Void>> register(
+            @Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
         log.info("AuthController :: Received register request for: {}", request.getEmail());
+        authRateLimiter.checkRegister(request.getEmail(), httpRequest.getRemoteAddr());
         userService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Registration successful", null));
@@ -109,11 +116,15 @@ public class AuthController {
     )
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Login successful — access token in body, refresh token in cookie",
             content = @Content(schema = @Schema(implementation = LoginResponse.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "Too many login attempts — rate limit exceeded",
+            content = @Content(schema = @Schema(implementation = ApiResponse.class)))
     @ApiErrorResponses
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
         log.info("AuthController :: Received login request for: {}", request.getEmail());
+        authRateLimiter.checkLogin(request.getEmail(), httpRequest.getRemoteAddr());
         LoginResponse response = userService.login(request.getEmail(), request.getPassword());
 
         // Set refresh token as httpOnly cookie

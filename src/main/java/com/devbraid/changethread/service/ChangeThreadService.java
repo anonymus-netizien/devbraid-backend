@@ -8,7 +8,6 @@ import com.devbraid.changethread.dto.response.NoteResponse;
 import com.devbraid.changethread.dto.response.ThreadResponse;
 import com.devbraid.changethread.entity.ChangeThread;
 import com.devbraid.changethread.entity.DecisionNote;
-import com.devbraid.changethread.event.ThreadStatusEventPublisher;
 import com.devbraid.changethread.exception.ThreadNotFoundException;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.repository.DecisionNoteRepository;
@@ -17,9 +16,7 @@ import com.devbraid.github.dto.response.ChangedFileDto;
 import com.devbraid.github.dto.response.CommitSummaryDto;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
 import com.devbraid.github.service.GitHubConnectionService;
-import com.devbraid.githubapp.GitHubAppTokenService;
 import com.devbraid.user.entity.User;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -47,45 +44,17 @@ public class ChangeThreadService {
     private final ChangeThreadRepository threadRepository;
     private final DecisionNoteRepository noteRepository;
     private final GitHubConnectionService gitHubConnectionService;
-    private final GitHubAppTokenService gitHubAppTokenService;
     private final GitHubApiClient gitHubApiClient;
-    private final ObjectMapper objectMapper;
     private final RiskAnalysisService riskAnalysisService;
-    private final ThreadSnapshotService snapshotService;
-    private final ThreadEventService eventService;
-    private final ThreadStatusEventPublisher statusEventPublisher;
     private final ModelMapper generalModelMapper;
 
     /**
-     * Create a new Change Thread by fetching diff data from GitHub.
-     *
-     * @param user the authenticated user
-     * @param req  thread creation request
-     * @return created thread response
-     * @throws GitHubNotConnectedException if user has no GitHub connection
+     * Create a new Change Thread by fetching diff data from GitHub using the user's connected PAT.
      */
     @Transactional
     public ThreadResponse createThread(User user, CreateThreadRequest req) {
         String decryptedPat = gitHubConnectionService.getDecryptedPatForUser(user);
         return createThreadInternal(user, decryptedPat, req);
-    }
-
-    /**
-     * Create a new Change Thread from a GitHub App webhook delivery, using the
-     * installation's access token instead of a user PAT. Requires no
-     * {@code github_connections} row — the installation id already identifies
-     * the App install for the repository.
-     *
-     * @param user           the user the thread is created for (from the installation)
-     * @param installationId GitHub App installation id for the repository
-     * @param req            thread creation request
-     * @return created thread response
-     * @throws GitHubAppTokenException if the App installation token cannot be obtained
-     */
-    @Transactional
-    public ThreadResponse createThreadForInstallation(User user, Long installationId, CreateThreadRequest req) {
-        String installationToken = gitHubAppTokenService.getInstallationToken(installationId);
-        return createThreadInternal(user, installationToken, req);
     }
 
     private ThreadResponse createThreadInternal(User user, String accessToken, CreateThreadRequest req) {
@@ -118,21 +87,13 @@ public class ChangeThreadService {
         thread = threadRepository.save(thread);
         log.info("Created thread {} for user {} on {}/{}", thread.getId(), user.getId(), owner, repo);
 
-        // Create initial snapshot and timeline event
-        snapshotService.createSnapshot(thread, user, com.devbraid.changethread.entity.SnapshotType.CREATION, null);
-        eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.THREAD_CREATED,
-                String.format("Thread '%s' created for %s (%s → %s)", thread.getTitle(), thread.getRepositoryFullName(), thread.getBaseBranch(), thread.getHeadBranch()),
-                null);
-
         return toResponse(thread);
     }
 
     /**
-     * Fetch the commit/diff data for a thread from GitHub — shared by the PAT
-     * path and the App-installation-token path.
+     * Fetch the commit/diff data for a thread from GitHub.
      */
     private ThreadData fetchThreadData(String accessToken, String owner, String repo, String baseBranch, String headBranch) {
-        // Fetch diff from GitHub — single branch vs cross-branch compare
         List<CommitSummaryDto> commits = null;
         List<ChangedFileDto> changedFiles = null;
         String latestCommitSha = null;
@@ -194,9 +155,6 @@ public class ChangeThreadService {
 
         thread = threadRepository.save(thread);
 
-        eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.STATUS_CHANGED,
-                String.format("Thread updated: %s", thread.getTitle()), null);
-
         return toResponse(thread);
     }
 
@@ -236,14 +194,6 @@ public class ChangeThreadService {
 
         thread = threadRepository.save(thread);
 
-        // Create refresh snapshot and timeline event
-        snapshotService.createSnapshot(thread, user, com.devbraid.changethread.entity.SnapshotType.REFRESH, null);
-        eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.THREAD_REFRESHED,
-                String.format("Thread refreshed from GitHub — %d commits, %d files",
-                        thread.getCommits() != null ? thread.getCommits().size() : 0,
-                        thread.getChangedFiles() != null ? thread.getChangedFiles().size() : 0),
-                null);
-
         return toResponse(thread);
     }
 
@@ -259,7 +209,6 @@ public class ChangeThreadService {
         var report = riskAnalysisService.analyze(thread.getCommits(), thread.getChangedFiles());
         RiskLevel overallRisk = (RiskLevel) report.get("overallRisk");
 
-        // Transition from DRAFT to ANALYZING
         if (thread.getStatus() == com.devbraid.changethread.entity.ThreadStatus.DRAFT) {
             thread.setStatus(com.devbraid.changethread.entity.ThreadStatus.ANALYZING);
         }
@@ -268,24 +217,11 @@ public class ChangeThreadService {
         thread.setRiskReport(report);
         thread = threadRepository.save(thread);
 
-        // Live status broadcast to subscribed UIs
-        statusEventPublisher.publishStatus(thread.getId(), thread.getStatus());
-
-        // Create analysis snapshot and timeline event
-        snapshotService.createSnapshot(thread, user, com.devbraid.changethread.entity.SnapshotType.ANALYSIS,
-                String.format("Risk level: %s", overallRisk));
-        // Event metadata is a String — serialize the report for the timeline
-        String riskReportJson = objectMapper.writeValueAsString(report);
-        eventService.recordEvent(thread, user, com.devbraid.changethread.entity.ThreadEventType.ANALYSIS_RUN,
-                String.format("Risk analysis complete — level: %s, flags: %d",
-                        overallRisk, report.get("flags") != null ? ((java.util.List<?>) report.get("flags")).size() : 0),
-                riskReportJson);
-
         log.info("Analyzed thread {} — risk level: {}", threadId, overallRisk);
         return toResponse(thread);
     }
 
-    // ── Public helper for ThreadSearchService ────────────────────────
+    // ── Public helper ────────────────────────────────────────────────
 
     /**
      * Convert a page of threads to responses with batch-loaded notes — eliminates N+1.
@@ -297,7 +233,7 @@ public class ChangeThreadService {
             return Page.empty();
         }
 
-        Map<UUID, List<NoteResponse>> notesByThreadId = batchLoadNoteResponsesByThreadId(
+        Map<UUID, List<NoteResponse>> notesByThreadId = batchLoadNotesByThreadIds(
                 threads.stream().map(ChangeThread::getId).toList()
         );
 
@@ -328,7 +264,7 @@ public class ChangeThreadService {
     /**
      * Batch-load note responses for a list of thread IDs — 1 query instead of N.
      */
-    private Map<UUID, List<NoteResponse>> batchLoadNoteResponsesByThreadId(List<UUID> threadIds) {
+    private Map<UUID, List<NoteResponse>> batchLoadNotesByThreadIds(List<UUID> threadIds) {
         if (threadIds.isEmpty()) {
             return Map.of();
         }

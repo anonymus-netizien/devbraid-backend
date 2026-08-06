@@ -1,6 +1,5 @@
 package com.devbraid.config;
 
-import com.devbraid.indexing.service.IndexingService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,13 +8,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AsyncConfig Unit Tests")
 class AsyncConfigTest {
-
-    private final IndexingService indexingService = mock(IndexingService.class);
 
     @InjectMocks
     private AsyncConfig config;

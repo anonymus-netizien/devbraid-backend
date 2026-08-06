@@ -7,9 +7,7 @@ import com.devbraid.brief.service.BriefPublisherService;
 import com.devbraid.changethread.dto.request.CreateThreadRequest;
 import com.devbraid.changethread.dto.request.UpdateThreadRequest;
 import com.devbraid.changethread.dto.response.ThreadResponse;
-import com.devbraid.changethread.entity.ThreadStatus;
 import com.devbraid.changethread.service.ChangeThreadService;
-import com.devbraid.changethread.service.ThreadSearchService;
 import com.devbraid.common.ApiResponse;
 import com.devbraid.common.api.ApiErrorResponses;
 import com.devbraid.user.entity.User;
@@ -38,13 +36,11 @@ import java.util.UUID;
 @Slf4j
 @Tag(name = "Change Threads", description = "Change Threads capture the *why* behind a code change: a branch pair, the commits/diffs involved, risk analysis and the resulting change brief.")
 @SecurityRequirement(name = "bearer-jwt")
-@SecurityRequirement(name = "api-key")
 public class ChangeThreadController {
 
     private final ChangeThreadService threadService;
     private final BriefBuilderService briefBuilderService;
     private final BriefPublisherService briefPublisherService;
-    private final ThreadSearchService searchService;
 
     @PostMapping
     @Operation(
@@ -76,54 +72,6 @@ public class ChangeThreadController {
             @AuthenticationPrincipal User user) {
         Page<ThreadResponse> threads = threadService.listThreads(user, pageable);
         return ResponseEntity.ok(ApiResponse.success("Threads retrieved", threads));
-    }
-
-    @GetMapping("/search")
-    @Operation(
-            summary = "Search threads by keyword",
-            description = "Full-text search over thread title and description."
-    )
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Search results",
-            content = @Content(schema = @Schema(implementation = Page.class)))
-    @ApiErrorResponses
-    public ResponseEntity<ApiResponse<Page<ThreadResponse>>> searchThreads(
-            @RequestParam @Parameter(description = "Search term", example = "rate limit") String q,
-            @PageableDefault(size = 20) Pageable pageable,
-            @AuthenticationPrincipal User user) {
-        Page<ThreadResponse> results = searchService.searchThreads(user, q, pageable);
-        return ResponseEntity.ok(ApiResponse.success("Search results", results));
-    }
-
-    @GetMapping("/search/status")
-    @Operation(
-            summary = "Filter threads by status",
-            description = "Paginated threads filtered by lifecycle status (`DRAFT`, `ANALYZED`, `BRIEFED`, ...)."
-    )
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Search results",
-            content = @Content(schema = @Schema(implementation = Page.class)))
-    @ApiErrorResponses
-    public ResponseEntity<ApiResponse<Page<ThreadResponse>>> searchByStatus(
-            @RequestParam @Parameter(description = "Thread status to filter by", schema = @Schema(implementation = ThreadStatus.class)) com.devbraid.changethread.entity.ThreadStatus status,
-            @PageableDefault(size = 20) Pageable pageable,
-            @AuthenticationPrincipal User user) {
-        Page<ThreadResponse> results = searchService.searchByStatus(user, status, pageable);
-        return ResponseEntity.ok(ApiResponse.success("Search results", results));
-    }
-
-    @GetMapping("/search/repo")
-    @Operation(
-            summary = "Filter threads by repository",
-            description = "Paginated threads for one repository, e.g. `owner/name`."
-    )
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Search results",
-            content = @Content(schema = @Schema(implementation = Page.class)))
-    @ApiErrorResponses
-    public ResponseEntity<ApiResponse<Page<ThreadResponse>>> searchByRepo(
-            @RequestParam @Parameter(description = "Repository full name", example = "anonymus-netizien/devbraid-backend") String repositoryFullName,
-            @PageableDefault(size = 20) Pageable pageable,
-            @AuthenticationPrincipal User user) {
-        Page<ThreadResponse> results = searchService.searchByRepository(user, repositoryFullName, pageable);
-        return ResponseEntity.ok(ApiResponse.success("Search results", results));
     }
 
     @GetMapping("/{id}")

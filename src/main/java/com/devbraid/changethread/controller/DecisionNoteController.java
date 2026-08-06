@@ -34,7 +34,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Tag(name = "Decision Notes", description = "Decision Notes record *why* a decision was made during a change — anchored to a commit, a file, or the thread as a whole.")
 @SecurityRequirement(name = "bearer-jwt")
-@SecurityRequirement(name = "api-key")
 public class DecisionNoteController {
 
     private final DecisionNoteService decisionNoteService;

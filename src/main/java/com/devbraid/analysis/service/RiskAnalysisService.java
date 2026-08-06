@@ -76,7 +76,7 @@ public class RiskAnalysisService {
                 .map(n -> Map.of("category", n.category(), "content", n.content(), "source", n.source().name()))
                 .toList());
 
-        // Phase 5: AI analysis — on failure the @FallbackMethod aspect returns null,
+        // Phase 5: AI analysis — on failure AiRiskAnalysis returns null,
         // keeping the deterministic-only report (aiAnalyzed stays false). No try/catch here.
         String aiResult = aiRiskAnalysis.analyze(commits, changedFiles, flags);
         if (aiResult != null) {
