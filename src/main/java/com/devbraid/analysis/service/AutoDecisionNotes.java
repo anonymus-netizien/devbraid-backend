@@ -159,8 +159,7 @@ public class AutoDecisionNotes {
 
     public enum SuggestionSource {
         FILE_ANALYSIS,
-        COMMIT_ANALYSIS,
-        PATTERN_MATCH
+        COMMIT_ANALYSIS
     }
 
     public record SuggestedNote(

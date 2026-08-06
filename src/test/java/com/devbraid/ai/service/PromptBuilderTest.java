@@ -37,7 +37,7 @@ class PromptBuilderTest {
 
     @Test
     @DisplayName("buildBriefPrompt() enforces the citation/inference rule — the product differentiator")
-    void buildBriefPrompt_containsCitationRule() {
+    void buildBriefPrompt_containsCitationRule() throws Exception {
         String prompt = promptBuilder.buildBriefPrompt(testThread);
 
         assertThat(prompt)
@@ -51,7 +51,7 @@ class PromptBuilderTest {
 
     @Test
     @DisplayName("buildBriefPrompt() includes thread context for grounding citations")
-    void buildBriefPrompt_includesThreadContext() {
+    void buildBriefPrompt_includesThreadContext() throws Exception {
         String prompt = promptBuilder.buildBriefPrompt(testThread);
 
         assertThat(prompt)
@@ -65,7 +65,7 @@ class PromptBuilderTest {
 
     @Test
     @DisplayName("buildTemplateBrief() clearly marks itself as fallback output")
-    void buildTemplateBrief_marksAsFallback() {
+    void buildTemplateBrief_marksAsFallback() throws Exception {
         String template = promptBuilder.buildTemplateBrief(testThread);
 
         assertThat(template)

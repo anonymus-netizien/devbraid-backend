@@ -3,9 +3,9 @@ package com.devbraid.user.controller;
 import com.devbraid.common.exception.GlobalExceptionHandler;
 import com.devbraid.user.dto.request.*;
 import com.devbraid.user.dto.response.LoginResponse;
-import com.devbraid.user.dto.response.UserProfileResponse;
-import com.devbraid.user.entity.User;
+import com.devbraid.user.exception.RateLimitExceededException;
 import com.devbraid.user.exception.UserAlreadyExistsException;
+import com.devbraid.user.service.AuthRateLimiter;
 import com.devbraid.user.service.OtpService;
 import com.devbraid.user.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,7 +17,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -25,13 +24,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -52,11 +49,13 @@ class AuthControllerTest {
     private UserService userService;
     @Mock
     private OtpService otpService;
+    @Mock
+    private AuthRateLimiter authRateLimiter;
     private AuthController authController;
 
     @BeforeEach
     void setUp() {
-        authController = new AuthController(userService, otpService);
+        authController = new AuthController(userService, otpService, authRateLimiter);
         ReflectionTestUtils.setField(authController, "refreshExpirationMs", 604800000L);
         mockMvc = MockMvcBuilders
                 .standaloneSetup(authController)
@@ -140,17 +139,29 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/v1/auth/register returns 429 when rate limited")
+    void register_RateLimited_Returns429() throws Exception {
+        doThrow(new RateLimitExceededException("Too many attempts. Please try again later."))
+                .when(authRateLimiter).checkRegister(EMAIL, "127.0.0.1");
+
+        String body = objectMapper.writeValueAsString(new RegisterRequest(FULL_NAME, EMAIL, PASSWORD));
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.success").value(false));
+
+        verify(userService, never()).register(any(RegisterRequest.class));
+    }
+
+    @Test
     @DisplayName("POST /api/v1/auth/login returns 200 OK with accessToken in body and refreshToken in httpOnly cookie")
     void login_Returns200WithLoginResponse() throws Exception {
-        LoginResponse loginResponse = LoginResponse.builder()
-                .accessToken(ACCESS_TOKEN)
-                .refreshToken(REFRESH_TOKEN)
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(3600))
-                .email(EMAIL)
-                .userId(USER_ID)
-                .role("DEVELOPER")
-                .build();
+        LoginResponse loginResponse = new LoginResponse(
+                ACCESS_TOKEN, REFRESH_TOKEN,
+                Instant.now(), Instant.now().plusSeconds(3600),
+                FULL_NAME, EMAIL, USER_ID, "DEVELOPER");
 
         when(userService.login(EMAIL, PASSWORD)).thenReturn(loginResponse);
 
@@ -181,53 +192,32 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/auth/me returns 200 OK with user profile")
-    void me_Returns200WithProfile() throws Exception {
-        User principal = User.builder()
-                .id(USER_ID)
-                .fullName(FULL_NAME)
-                .email(EMAIL)
-                .build();
+    @DisplayName("POST /api/v1/auth/login returns 429 when rate limited")
+    void login_RateLimited_Returns429() throws Exception {
+        doThrow(new RateLimitExceededException("Too many attempts. Please try again later."))
+                .when(authRateLimiter).checkLogin(EMAIL, "127.0.0.1");
 
-        SecurityContextHolder.getContext().setAuthentication(
-                new TestingAuthenticationToken(principal, null, "ROLE_DEVELOPER"));
+        String body = objectMapper.writeValueAsString(new LoginRequest(EMAIL, PASSWORD));
 
-        UserProfileResponse profile = UserProfileResponse.builder()
-                .id(USER_ID)
-                .fullName(FULL_NAME)
-                .email(EMAIL)
-                .role("DEVELOPER")
-                .createdAt(OffsetDateTime.now())
-                .build();
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.success").value(false));
 
-        when(userService.getUserProfile(USER_ID.toString())).thenReturn(profile);
-
-        mockMvc.perform(get("/api/v1/auth/me"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("User profile retrieved"))
-                .andExpect(jsonPath("$.data.id").value(USER_ID.toString()))
-                .andExpect(jsonPath("$.data.fullName").value(FULL_NAME))
-                .andExpect(jsonPath("$.data.email").value(EMAIL))
-                .andExpect(jsonPath("$.data.role").value("DEVELOPER"))
-                .andExpect(jsonPath("$.data.createdAt").exists());
-
-        verify(userService).getUserProfile(USER_ID.toString());
-        SecurityContextHolder.clearContext();
+        verify(userService, never()).login(EMAIL, PASSWORD);
     }
+
+    // NOTE: GET /auth/me test removed — endpoint moved to UserController /api/v1/user/profile
+    // See UserControllerTest for profile endpoint tests
 
     @Test
     @DisplayName("POST /api/v1/auth/refresh returns 200 OK with new accessToken in body and new refreshToken in httpOnly cookie")
     void refresh_Returns200WithNewTokens() throws Exception {
-        LoginResponse loginResponse = LoginResponse.builder()
-                .accessToken("new-access-token")
-                .refreshToken("new-refresh-token")
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(3600))
-                .email(EMAIL)
-                .userId(USER_ID)
-                .role("DEVELOPER")
-                .build();
+        LoginResponse loginResponse = new LoginResponse(
+                "new-access-token", "new-refresh-token",
+                Instant.now(), Instant.now().plusSeconds(3600),
+                FULL_NAME, EMAIL, USER_ID, "DEVELOPER");
 
         when(userService.refreshToken(REFRESH_TOKEN)).thenReturn(loginResponse);
 

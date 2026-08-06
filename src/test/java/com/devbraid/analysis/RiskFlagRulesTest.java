@@ -149,6 +149,68 @@ class RiskFlagRulesTest {
     }
 
     @Test
+    @DisplayName("evaluate() does not flag a large diff at exactly 500 lines")
+    void evaluate_AtLargeDiffBoundary_DoesNotFlag() {
+        List<ChangedFileDto> files = List.of(file("src/main.java", 300, 200));
+        List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
+
+        assertThat(flags).noneMatch(f -> "largeDiff".equals(f.getRule()));
+    }
+
+    @Test
+    @DisplayName("evaluate() does not flag many files at exactly 20")
+    void evaluate_AtManyFilesBoundary_DoesNotFlag() {
+        List<ChangedFileDto> files = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            files.add(file("file" + i + ".java", 1, 0));
+        }
+
+        List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
+
+        assertThat(flags).noneMatch(f -> "manyFiles".equals(f.getRule()));
+    }
+
+    @Test
+    @DisplayName("evaluate() flags npm dependency changes as LOW")
+    void evaluate_NpmDependencyChange_ReturnsLowFlag() {
+        List<ChangedFileDto> files = List.of(file("package.json", 3, 1));
+        List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
+
+        assertThat(flags).anyMatch(f ->
+                "npmDependencyChange".equals(f.getRule()) && f.getSeverity() == RiskLevel.LOW
+        );
+    }
+
+    @Test
+    @DisplayName("evaluate() flags 'work in progress' commit messages as WIP")
+    void evaluate_WorkInProgressCommit_FlagsWip() {
+        var commit = new com.devbraid.github.dto.response.CommitSummaryDto("abc123", "Work in progress on dashboard", null);
+        List<RiskFlagDto> flags = riskFlagRules.evaluate(List.of(commit), List.of());
+
+        assertThat(flags).anyMatch(f -> "wipCommits".equals(f.getRule()));
+    }
+
+    @Test
+    @DisplayName("evaluate() does not flag WIP for a normal commit message")
+    void evaluate_NormalCommit_DoesNotFlagWip() {
+        var commit = new com.devbraid.github.dto.response.CommitSummaryDto("abc123", "feat: add auth flow", null);
+        List<RiskFlagDto> flags = riskFlagRules.evaluate(List.of(commit), List.of());
+
+        assertThat(flags).noneMatch(f -> "wipCommits".equals(f.getRule()));
+    }
+
+    @Test
+    @DisplayName("evaluate() ignores changed files with null filename")
+    void evaluate_NullFilename_DoesNotThrow() {
+        List<ChangedFileDto> files = List.of(file(null, 5, 1));
+
+        List<RiskFlagDto> flags = riskFlagRules.evaluate(null, files);
+
+        assertThat(flags).isNotNull();
+        assertThat(flags).noneMatch(f -> "securityPaths".equals(f.getRule()));
+    }
+
+    @Test
     @DisplayName("evaluate() sorts flags by severity descending")
     void evaluate_SortsFlagsBySeverity() {
         List<ChangedFileDto> files = List.of(file("src/main/java/com/app/security/AuthService.java", 600, 0));

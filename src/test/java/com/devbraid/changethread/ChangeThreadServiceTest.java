@@ -8,8 +8,6 @@ import com.devbraid.changethread.entity.ThreadStatus;
 import com.devbraid.changethread.repository.ChangeThreadRepository;
 import com.devbraid.changethread.repository.DecisionNoteRepository;
 import com.devbraid.changethread.service.ChangeThreadService;
-import com.devbraid.changethread.service.ThreadEventService;
-import com.devbraid.changethread.service.ThreadSnapshotService;
 import com.devbraid.github.client.GitHubApiClient;
 import com.devbraid.github.dto.response.ChangedFileDto;
 import com.devbraid.github.dto.response.CommitSummaryDto;
@@ -66,12 +64,6 @@ class ChangeThreadServiceTest {
 
     @Mock
     private RiskAnalysisService riskAnalysisService;
-
-    @Mock
-    private ThreadSnapshotService snapshotService;
-
-    @Mock
-    private ThreadEventService eventService;
 
     @Spy
     private ModelMapper generalModelMapper = createTestModelMapper();
@@ -210,5 +202,45 @@ class ChangeThreadServiceTest {
                 .hasMessageContaining("Connect GitHub first");
 
         verify(threadRepository, never()).save(any());
+    }
+
+    @Test
+    @Order(5)
+    @DisplayName("createThread() handles single-branch mode when base equals head")
+    void createThread_SingleBranchMode_FetchesCommits() {
+        var commits = java.util.List.of(new CommitSummaryDto("abc123", "feat: add feature", null));
+
+        when(gitHubApiClient.listCommits(any(), eq("test-owner"), eq("test-repo"), eq("main"), eq(20)))
+                .thenReturn(commits);
+        when(noteRepository.findByThreadIdOrderByCreatedAtDesc(any())).thenReturn(java.util.List.of());
+        stubThreadSaveWithId();
+
+        CreateThreadRequest request = new CreateThreadRequest(
+                "test-owner/test-repo", "main", "main", "Single Branch Thread", null
+        );
+
+        ThreadResponse response = threadService.createThread(testUser, request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getCommitSha()).isEqualTo("abc123");
+        assertThat(response.getChangedFiles()).isNull();
+        verify(gitHubApiClient).listCommits(any(), eq("test-owner"), eq("test-repo"), eq("main"), eq(20));
+        verify(threadRepository).save(any(ChangeThread.class));
+    }
+
+    private void stubThreadSaveWithId() {
+        when(threadRepository.save(any(ChangeThread.class))).thenAnswer(invocation -> {
+            ChangeThread thread = invocation.getArgument(0);
+            var field = ChangeThread.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(thread, UUID.randomUUID());
+            var createdAt = ChangeThread.class.getDeclaredField("createdAt");
+            createdAt.setAccessible(true);
+            createdAt.set(thread, OffsetDateTime.now());
+            var updatedAt = ChangeThread.class.getDeclaredField("updatedAt");
+            updatedAt.setAccessible(true);
+            updatedAt.set(thread, OffsetDateTime.now());
+            return thread;
+        });
     }
 }

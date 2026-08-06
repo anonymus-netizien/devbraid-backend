@@ -133,6 +133,78 @@ class EvidenceExtractorTest {
     }
 
     @Test
+    @DisplayName("extract() identifies auth and crypto paths as security files")
+    void extract_WithAuthAndCryptoPaths_IdentifiesThem() {
+        List<ChangedFileDto> files = List.of(
+                file("src/main/java/com/app/auth/JwtService.java", 10, 2),
+                file("src/main/java/com/app/crypto/PatEncryptor.java", 5, 1),
+                file("src/main/java/com/app/controller/HomeController.java", 3, 1)
+        );
+        Map<String, Object> evidence = evidenceExtractor.extract(null, files);
+
+        @SuppressWarnings("unchecked")
+        List<String> securityFiles = (List<String>) evidence.get("securityFiles");
+        assertThat(securityFiles).hasSize(2);
+        assertThat(securityFiles).anyMatch(f -> f.contains("/auth/"));
+        assertThat(securityFiles).anyMatch(f -> f.contains("/crypto/"));
+    }
+
+    @Test
+    @DisplayName("extract() identifies TypeScript test file variants")
+    void extract_WithTsTestVariants_IdentifiesThem() {
+        List<ChangedFileDto> files = List.of(
+                file("src/utils/error.test.ts", 5, 0),
+                file("src/components/__tests__/button.test.tsx", 8, 0),
+                file("src/main.ts", 10, 2)
+        );
+        Map<String, Object> evidence = evidenceExtractor.extract(null, files);
+
+        @SuppressWarnings("unchecked")
+        List<String> testFiles = (List<String>) evidence.get("testFiles");
+        assertThat(testFiles).hasSize(2);
+        assertThat(testFiles).anyMatch(f -> f.contains(".test."));
+        assertThat(testFiles).anyMatch(f -> f.contains("/__tests__/"));
+    }
+
+    @Test
+    @DisplayName("extract() identifies /config/ path as config file")
+    void extract_WithConfigPath_IdentifiesIt() {
+        List<ChangedFileDto> files = List.of(
+                file("src/main/java/com/app/config/SecurityConfig.java", 10, 2),
+                file("src/main/java/com/app/Main.java", 1, 0)
+        );
+        Map<String, Object> evidence = evidenceExtractor.extract(null, files);
+
+        @SuppressWarnings("unchecked")
+        List<String> configFiles = (List<String>) evidence.get("configFiles");
+        assertThat(configFiles).hasSize(1);
+        assertThat(configFiles.get(0)).contains("/config/");
+    }
+
+    @Test
+    @DisplayName("extract() filters out null filenames")
+    void extract_WithNullFilenames_FiltersThemOut() {
+        List<ChangedFileDto> files = List.of(file(null, 10, 2), file("src/main.java", 1, 0));
+        Map<String, Object> evidence = evidenceExtractor.extract(null, files);
+
+        assertThat(evidence.get("fileCount")).isEqualTo(1);
+        @SuppressWarnings("unchecked")
+        List<String> filenames = (List<String>) evidence.get("filenames");
+        assertThat(filenames).containsExactly("src/main.java");
+    }
+
+    @Test
+    @DisplayName("extract() ignores the commits parameter entirely")
+    void extract_WithCommits_IgnoresThem() {
+        var commit = new com.devbraid.github.dto.response.CommitSummaryDto("abc123", "feat: add thing", null);
+        List<ChangedFileDto> files = List.of(file("src/main.java", 1, 0));
+        Map<String, Object> evidence = evidenceExtractor.extract(List.of(commit), files);
+
+        assertThat(evidence.get("fileCount")).isEqualTo(1);
+        assertThat(evidence.get("totalAdditions")).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("extract() returns filenames list")
     void extract_ReturnsFilenamesList() {
         List<ChangedFileDto> files = List.of(file("src/main.java", 1, 0), file("src/test.java", 1, 0));

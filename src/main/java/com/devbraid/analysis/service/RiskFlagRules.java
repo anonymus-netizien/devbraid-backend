@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * Deterministic risk evaluation rules for code changes.
@@ -28,11 +27,6 @@ public class RiskFlagRules {
     private static final Set<String> CROSS_CUTTING_PATTERNS = Set.of(
             "SecurityConfig", "WebConfig", "CorsConfig", "CacheConfig",
             "RateLimiter", "Filter", "Interceptor", "Advice"
-    );
-    // Patterns suggesting tight coupling
-    @SuppressWarnings("unused")
-    private static final Pattern GOD_CLASS_PATTERN = Pattern.compile(
-            "(Service|Manager|Handler|Helper)\\.java$"
     );
 
     public List<RiskFlagDto> evaluate(List<CommitSummaryDto> commits, List<ChangedFileDto> changedFiles) {

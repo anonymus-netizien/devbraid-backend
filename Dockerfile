@@ -1,5 +1,5 @@
 # ---- Build Stage ----
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
 # Copy pom.xml and download dependencies first (layer caching)
@@ -11,7 +11,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests -q
 
 # ---- Runtime Stage ----
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # Copy compiled jar from build stage

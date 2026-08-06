@@ -1,7 +1,5 @@
 package com.devbraid.brief.service;
 
-import com.devbraid.ai.service.AIProvider;
-import com.devbraid.ai.service.PromptBuilder;
 import com.devbraid.brief.dto.BriefListItemResponse;
 import com.devbraid.brief.dto.BriefResponse;
 import com.devbraid.brief.entity.ChangeBrief;
@@ -29,8 +27,7 @@ public class BriefBuilderService {
 
     private final ChangeBriefRepository briefRepository;
     private final ChangeThreadRepository threadRepository;
-    private final AIProvider aiProvider;
-    private final PromptBuilder promptBuilder;
+    private final BriefContentGenerator briefContentGenerator;
     private final ModelMapper generalModelMapper;
 
     /**
@@ -41,23 +38,13 @@ public class BriefBuilderService {
      * @return the generated brief response
      */
     @Transactional
-    public BriefResponse generateBrief(User user, UUID threadId) {
+    public BriefResponse generateBrief(User user, UUID threadId) throws Exception {
         ChangeThread thread = threadRepository
                 .findByIdAndUserId(threadId, user.getId())
                 .orElseThrow(() -> new ThreadNotFoundException("Thread not found"));
 
-        // ponytail: no try/catch — AI failures propagate as RuntimeException to GlobalExceptionHandler.
-        // Citation/inference marker check: if AI output lacks evidence markers, use template.
-        String content;
-        try {
-            content = aiProvider.analyze(promptBuilder.buildBriefPrompt(thread));
-        } catch (Exception e) {
-            throw new RuntimeException("AI brief generation failed", e);
-        }
-        if (!isEvidenceBacked(content)) {
-            log.warn("AI brief output missing citation/inference markers — using template fallback");
-            content = promptBuilder.buildTemplateBrief(thread);
-        }
+        // ponytail: AI failures fall back to the template via try/catch in BriefContentGenerator.
+        String content = briefContentGenerator.generateContent(thread);
 
         // Check if brief already exists
         var existingBrief = briefRepository.findByThreadId(threadId);
@@ -115,19 +102,6 @@ public class BriefBuilderService {
         return briefRepository.findByThreadId(threadId)
                 .map(this::toResponse)
                 .orElse(null);
-    }
-
-    /**
-     * Checks whether AI brief output carries the required evidence markers:
-     * a citation ([file:], [commit:], [source:]) or an [inference] marker.
-     * ponytail: case-insensitive lowercase match; upgrade to regex/parsing if
-     * the AI starts emitting markdown-link citations ([source](url)) instead.
-     */
-    private boolean isEvidenceBacked(String content) {
-        if (content == null || content.isBlank()) return false;
-        String lower = content.toLowerCase();
-        return lower.contains("[file:") || lower.contains("[commit:")
-                || lower.contains("[source:") || lower.contains("[inference]");
     }
 
     private BriefResponse toResponse(ChangeBrief brief) {

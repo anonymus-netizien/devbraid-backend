@@ -4,6 +4,7 @@ import com.devbraid.github.dto.internal.RawGitHubBranch;
 import com.devbraid.github.dto.internal.RawGitHubRepo;
 import com.devbraid.github.dto.internal.RawGitHubUser;
 import com.devbraid.github.dto.response.GitHubCompareResponse;
+import com.devbraid.github.exception.GitHubForbiddenException;
 import com.devbraid.github.exception.GitHubNotFoundException;
 import com.devbraid.github.exception.GitHubRateLimitException;
 import com.devbraid.github.exception.GitHubTokenInvalidException;
@@ -108,6 +109,23 @@ class GitHubApiClientWireMockTest {
         assertThatThrownBy(() -> client.validateToken(TOKEN))
                 .isInstanceOf(GitHubRateLimitException.class)
                 .hasMessageContaining("rate limit");
+    }
+
+    @Test
+    @Order(4)
+    @DisplayName("createPullRequestComment() throws GitHubForbiddenException for 403 (missing PAT scope)")
+    void createPullRequestComment_Forbidden_ThrowsException() {
+        stubFor(post(urlEqualTo("/repos/owner/repo/issues/42/comments"))
+                .willReturn(aResponse()
+                        .withStatus(403)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"message\":\"Resource not accessible by personal access token\"}")));
+
+        assertThatThrownBy(() -> client.createPullRequestComment(TOKEN, "owner", "repo", 42, "body"))
+                .isInstanceOf(GitHubForbiddenException.class)
+                .hasMessageContaining("scope");
+
+        verify(1, postRequestedFor(urlEqualTo("/repos/owner/repo/issues/42/comments")));
     }
 
     // ── Repository Listing Tests ──

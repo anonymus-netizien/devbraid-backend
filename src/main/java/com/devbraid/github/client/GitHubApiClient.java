@@ -1,7 +1,6 @@
 package com.devbraid.github.client;
 
 import com.devbraid.github.dto.internal.RawGitHubBranch;
-import com.devbraid.github.dto.internal.RawGitHubOrg;
 import com.devbraid.github.dto.internal.RawGitHubRepo;
 import com.devbraid.github.dto.internal.RawGitHubUser;
 import com.devbraid.github.dto.response.CommitSummaryDto;
@@ -90,11 +89,6 @@ public class GitHubApiClient {
         });
     }
 
-    public List<RawGitHubOrg> listUserOrgs(String token) {
-        return getList("/user/orgs", token, new TypeReference<>() {
-        });
-    }
-
     public GitHubCompareResponse compare(String token, String owner, String repo, String base, String head) {
         String path = "/repos/" + owner + "/" + repo + "/compare/" + base + "..." + head;
         return get(path, token, GitHubCompareResponse.class);
@@ -126,6 +120,21 @@ public class GitHubApiClient {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 201) {
                 log.warn("GitHub API returned {} for PR comment: {}", response.statusCode(), response.body());
+                if (response.statusCode() == 403) {
+                    throw new com.devbraid.github.exception.GitHubForbiddenException(
+                            "GitHub rejected the publish: the PAT lacks the required scope (e.g. Issues/PR-comment write access). Add it or reconnect with a broader token."
+                    );
+                }
+                if (response.statusCode() == 404) {
+                    throw new com.devbraid.github.exception.GitHubNotFoundException(
+                            "Pull request #" + prNumber + " not found in " + owner + "/" + repo + "."
+                    );
+                }
+                if (response.statusCode() == 401) {
+                    throw new com.devbraid.github.exception.GitHubTokenInvalidException(
+                            "GitHub token is invalid or expired. Please reconnect."
+                    );
+                }
                 throw new RuntimeException("GitHub API error: " + response.statusCode());
             }
         } catch (IOException e) {
@@ -185,6 +194,26 @@ public class GitHubApiClient {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             int status = response.statusCode();
 
+            if (status == 401) {
+                throw new com.devbraid.github.exception.GitHubTokenInvalidException(
+                        "GitHub token is invalid or expired. Please reconnect."
+                );
+            }
+            if (status == 403) {
+                throw new com.devbraid.github.exception.GitHubRateLimitException(
+                        "GitHub API rate limit exceeded. Try again later."
+                );
+            }
+            if (status == 404) {
+                throw new com.devbraid.github.exception.GitHubNotFoundException(
+                        "GitHub resource not found. Check repo and branch names."
+                );
+            }
+            if (status == 422) {
+                throw new IllegalArgumentException(
+                        "GitHub API rejected request. Check branch names or repository permissions."
+                );
+            }
             if (status == 401) {
                 throw new com.devbraid.github.exception.GitHubTokenInvalidException(
                         "GitHub token is invalid or expired. Please reconnect."

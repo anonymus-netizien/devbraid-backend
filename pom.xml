@@ -97,6 +97,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- MockMvc auto-configuration (split out of starter-test in Spring Boot 4) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Jackson for JSON parsing in GitHubApiClient -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -128,18 +134,11 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- JavaParser AST engine for Java codebase indexing -->
-        <!-- ponytail: core only, no symbol-solver — structural extraction suffices -->
+        <!-- OpenAPI 3 + Swagger UI documentation (springdoc 3.x for Spring Boot 4.x) -->
         <dependency>
-            <groupId>com.github.javaparser</groupId>
-            <artifactId>javaparser-core</artifactId>
-            <version>3.26.4</version>
-        </dependency>
-
-        <!-- STOMP over WebSocket for real-time thread status updates -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-websocket</artifactId>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.0.3</version>
         </dependency>
     </dependencies>
 

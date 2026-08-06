@@ -1,7 +1,5 @@
 package com.devbraid.analysis.service;
 
-import com.devbraid.ai.service.AIProvider;
-import com.devbraid.ai.service.PromptBuilder;
 import com.devbraid.analysis.RiskLevel;
 import com.devbraid.analysis.dto.RiskFlagDto;
 import com.devbraid.github.dto.response.ChangedFileDto;
@@ -28,8 +26,7 @@ public class RiskAnalysisService {
     private final CommitMessageAnalyzer commitMessageAnalyzer;
     private final TestCoverageGapDetector testCoverageGapDetector;
     private final AutoDecisionNotes autoDecisionNotes;
-    private final AIProvider aiProvider;
-    private final PromptBuilder promptBuilder;
+    private final AiRiskAnalysis aiRiskAnalysis;
 
     /**
      * Run full risk analysis (deterministic + commit + test gap + AI).
@@ -79,10 +76,13 @@ public class RiskAnalysisService {
                 .map(n -> Map.of("category", n.category(), "content", n.content(), "source", n.source().name()))
                 .toList());
 
-        // Phase 5: AI analysis — all exceptions propagate to GlobalExceptionHandler
-        String aiResult = aiProvider.analyze(promptBuilder.buildAnalysisPrompt(commits, changedFiles, flags));
-        report.put("aiAnalysis", aiResult);
-        report.put("aiAnalyzed", true);
+        // Phase 5: AI analysis — on failure AiRiskAnalysis returns null,
+        // keeping the deterministic-only report (aiAnalyzed stays false). No try/catch here.
+        String aiResult = aiRiskAnalysis.analyze(commits, changedFiles, flags);
+        if (aiResult != null) {
+            report.put("aiAnalysis", aiResult);
+            report.put("aiAnalyzed", true);
+        }
 
         return report;
     }

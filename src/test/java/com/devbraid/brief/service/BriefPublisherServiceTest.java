@@ -187,4 +187,16 @@ class BriefPublisherServiceTest {
         assertThat(response.getSuccess()).isFalse();
         assertThat(response.getMessage()).isEqualTo("Brief not yet published");
     }
+
+    @Test
+    @DisplayName("getPublishStatus() throws when thread not found")
+    void getPublishStatus_ThreadNotFound_ThrowsException() {
+        when(threadRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> briefPublisherService.getPublishStatus(testUser, UUID.randomUUID()))
+                .isInstanceOf(ThreadNotFoundException.class)
+                .hasMessageContaining("Thread not found");
+
+        verify(briefRepository, never()).findByThreadId(any());
+    }
 }
