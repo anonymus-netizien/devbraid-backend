@@ -15,14 +15,14 @@ spring:
       hibernate:
         format_sql: false
 
-  # Staging Datasource (environment variables for secrets)
+  # Staging Datasource (Neon Postgres via environment variables)
   datasource:
-    url: ${STAGE_DB_URL:jdbc:postgresql://staging-db:5432/devbraid}
-    username: ${STAGE_DB_USERNAME:devbraid_user}
+    url: ${STAGE_DB_URL}
+    username: ${STAGE_DB_USERNAME}
     password: ${STAGE_DB_PASSWORD}
     hikari:
-      maximum-pool-size: 15
-      minimum-idle: 5
+      maximum-pool-size: ${STAGE_DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${STAGE_DB_POOL_MIN_IDLE:2}
       connection-timeout: 30000
 
   # Flyway enabled for staging
@@ -31,17 +31,9 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
 
-  # Staging Redis Configuration (env-driven)
-  data:
-    redis:
-      host: ${STAGE_REDIS_HOST:localhost}
-      port: ${STAGE_REDIS_PORT:6379}
-      password: ${STAGE_REDIS_PASSWORD:}
-      database: ${STAGE_REDIS_DB:0}
-
 # Staging Server Configuration
 server:
-  port: ${STAGE_SERVER_PORT:8080}
+  port: ${PORT:8080}
 
 # Staging Logging (moderate verbosity)
 logging:
@@ -57,10 +49,11 @@ app:
   cors:
     allowed-origins: ${STAGE_CORS_ORIGINS:https://staging.devbraid.com}
     allow-credentials: true
-  jwt:
-    secret: ${STAGE_JWT_SECRET}
-    access-expiration: ${STAGE_JWT_ACCESS_EXPIRATION:1800000}
-    refresh-expiration: ${STAGE_JWT_REFRESH_EXPIRATION:604800000}
+  clerk:
+    jwks-url: ${CLERK_JWKS_URL}
+    issuer: ${CLERK_ISSUER:}
+  encryption:
+    key: ${STAGE_ENCRYPTION_KEY}
 
 # Staging Actuator (expose health and info)
 management:

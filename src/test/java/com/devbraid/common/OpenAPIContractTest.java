@@ -61,7 +61,7 @@ class OpenAPIContractTest {
 
         assertThat(spec).contains("bearer-jwt");
         assertThat(spec).contains("\"tags\"");
-        assertThat(spec).contains("Authentication");
+        assertThat(spec).contains("User");
         assertThat(spec).contains("Change Threads");
         assertThat(spec).contains("GitHub Connection");
     }

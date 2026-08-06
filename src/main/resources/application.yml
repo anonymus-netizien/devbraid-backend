@@ -26,15 +26,9 @@ spring:
     hikari:
       connection-timeout: ${DB_POOL_TIMEOUT:30000}
 
-  # Security Configuration
-  security:
-    user:
-      name: ${SECURITY_USER_NAME:admin}
-      password: ${SECURITY_USER_PASSWORD:admin}
-
 # Server Configuration
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${PORT:8080}
   servlet:
     context-path: ${SERVER_CONTEXT_PATH:/}
 
@@ -53,10 +47,11 @@ app:
     allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS}
     allowed-headers: ${CORS_ALLOWED_HEADERS:*}
     allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
-  jwt:
-    secret: ${JWT_SECRET}
-    access-expiration: ${JWT_ACCESS_EXPIRATION:1800000}
-    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+  clerk:
+    # Clerk JWKS endpoint for session-token verification:
+    # https://<your-instance>.clerk.accounts/.well-known/jwks.json
+    jwks-url: ${CLERK_JWKS_URL:}
+    issuer: ${CLERK_ISSUER:}
   api:
     version: ${API_VERSION:v1}
 
