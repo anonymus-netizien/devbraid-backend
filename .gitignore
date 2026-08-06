@@ -51,10 +51,6 @@ out/
 
 # Keep .env.example tracked (it's a template)
 !.env.example
-# Documentation (keep local, don't commit)
-CHECKLIST.md
-API.md
-ARCHITECTURE.md
 
 # Added by code-review-graph
 .code-review-graph/

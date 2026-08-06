@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.url=jdbc:postgresql://localhost:5432/none",
         "spring.datasource.username=none",
         "spring.datasource.password=none",
-        "app.jwt.secret=test-secret",
+        "app.clerk.jwks-url=https://test.clerk.accounts/.well-known/jwks.json",
         "app.encryption.key=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         "server.servlet.context-path=",
         "management.server.port=0"

@@ -1,30 +1,17 @@
 package com.devbraid.user.service;
 
-import com.devbraid.security.JwtTokenProvider;
-import com.devbraid.security.SecurityUtils;
-import com.devbraid.user.dto.request.RegisterRequest;
-import com.devbraid.user.dto.request.UpdatePasswordRequest;
 import com.devbraid.user.dto.request.UpdateProfileRequest;
-import com.devbraid.user.dto.response.LoginResponse;
 import com.devbraid.user.dto.response.UserProfileResponse;
-import com.devbraid.user.entity.RefreshToken;
 import com.devbraid.user.entity.User;
-import com.devbraid.user.exception.InvalidCredentialsException;
-import com.devbraid.user.exception.RefreshTokenRevokedException;
-import com.devbraid.user.exception.UserAlreadyExistsException;
 import com.devbraid.user.exception.UserNotFoundException;
-import com.devbraid.user.repository.RefreshTokenRepository;
 import com.devbraid.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -33,80 +20,24 @@ import java.time.ZoneOffset;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final OtpService otpService;
     private final ModelMapper generalModelMapper;
 
-    public void register(RegisterRequest request) {
-        log.info("UserService :: Register request for email: {}", request.getEmail());
-
-        if (request.isDisposableEmail()) {
-            throw new IllegalArgumentException("Disposable email addresses are not allowed");
-        }
-
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new UserAlreadyExistsException("Email already registered");
-        }
-
-        // Store in Redis first — never touch PostgreSQL until OTP is verified
-        // ponytail: pending_user avoids garbage rows from abandoned signups
-        String passwordHash = passwordEncoder.encode(request.getPassword());
-        otpService.storePendingRegistration(request.getEmail(), passwordHash, request.getFullName());
-
-        // If OTP was already verified (backward compat), finalize immediately
-        if (otpService.isEmailVerified(request.getEmail())) {
-            finalizeRegistration(request.getEmail());
-        }
-
-        log.info("UserService :: Pending registration stored for email: {}", request.getEmail());
-    }
-
     /**
-     * Moves a pending registration from Redis to PostgreSQL.
-     * Called by AuthController.verifyOtp after successful OTP verification.
+     * Returns the local user for a Clerk session. First request for a Clerk user
+     * creates the local row (clerk_id is the link); subsequent requests reuse it.
      */
-    public void finalizeRegistration(String email) {
-        var pending = otpService.getPendingRegistration(email);
-        if (pending == null) {
-            log.warn("UserService :: No pending registration found for email: {}", email);
-            return;
-        }
-
-        if (userRepository.existsByEmail(email)) {
-            log.warn("UserService :: User already exists for email: {}, cleaning up pending", email);
-            otpService.deletePendingRegistration(email);
-            otpService.clearVerification(email);
-            return;
-        }
-
-        User user = User.builder()
-                .fullName(pending.fullName())
-                .email(email)
-                .passwordHash(pending.passwordHash())
-                .build();
-
-        userRepository.save(user);
-        otpService.deletePendingRegistration(email);
-        otpService.clearVerification(email);
-
-        log.info("UserService :: User finalized from pending registration for email: {}", email);
-    }
-
-    public LoginResponse login(String email, String password) {
-        log.info("UserService :: Login request for email: {}", email);
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException("User not found for email: " + email));
-
-        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-            throw new InvalidCredentialsException("Invalid email or password");
-        }
-
-        LoginResponse response = buildLoginResponse(user);
-        persistRefreshToken(response.getRefreshToken(), user);
-        return response;
+    public User syncClerkUser(String clerkId, String email, String fullName) {
+        return userRepository.findByClerkId(clerkId)
+                .orElseGet(() -> {
+                    User user = User.builder()
+                            .clerkId(clerkId)
+                            .email(email)
+                            .fullName(fullName)
+                            .build();
+                    userRepository.save(user);
+                    log.info("UserService :: Created user {} for clerk {}", user.getId(), clerkId);
+                    return user;
+                });
     }
 
     public UserProfileResponse updateProfile(User user, UpdateProfileRequest request) {
@@ -121,95 +52,14 @@ public class UserService {
         return getUserProfile(user.getId().toString());
     }
 
-    public void changePassword(User user, UpdatePasswordRequest request) {
-        log.info("UserService :: Change password for user {}", user.getEmail());
-
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
-            throw new InvalidCredentialsException("Current password is incorrect");
-        }
-
-        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
-
-        log.info("UserService :: Password changed for user {}", user.getId());
-    }
-
     public UserProfileResponse getUserProfile(String userId) {
         log.info("UserService :: Get user profile for id: {}", userId);
 
-        User user = userRepository.findById(java.util.UUID.fromString(userId))
+        User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
 
         UserProfileResponse response = generalModelMapper.map(user, UserProfileResponse.class);
         response.setRole("DEVELOPER");
         return response;
-    }
-
-    public LoginResponse refreshToken(String refreshToken) {
-        log.info("UserService :: Refresh token request");
-
-        if (!jwtTokenProvider.isRefreshToken(refreshToken)) {
-            throw new InvalidCredentialsException("Invalid refresh token");
-        }
-
-        // Look up and validate against DB
-        String tokenHash = SecurityUtils.sha256Hex(refreshToken);
-        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new InvalidCredentialsException("Refresh token not found"));
-
-        if (storedToken.isRevoked()) {
-            log.warn("UserService :: Attempted use of revoked refresh token");
-            throw new RefreshTokenRevokedException("Refresh token has been revoked");
-        }
-
-        // Delete old token on rotation to prevent duplicate build-up
-        refreshTokenRepository.delete(storedToken);
-
-        // Issue new tokens
-        String userId = jwtTokenProvider.getUserId(refreshToken);
-        User user = userRepository.findById(java.util.UUID.fromString(userId))
-                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
-
-        LoginResponse response = buildLoginResponse(user);
-        persistRefreshToken(response.getRefreshToken(), user);
-
-        log.info("UserService :: Token refreshed for user id: {}", userId);
-        return response;
-    }
-
-    public void logout(String refreshToken) {
-        log.info("UserService :: Logout request");
-
-        String tokenHash = SecurityUtils.sha256Hex(refreshToken);
-        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
-
-        refreshTokenRepository.delete(storedToken);
-
-        log.info("UserService :: Refresh token removed for user");
-    }
-
-    private LoginResponse buildLoginResponse(User user) {
-        String userId = user.getId().toString();
-        String userRole = "DEVELOPER";
-
-        String accessToken = jwtTokenProvider.createAccessToken(userId, user.getEmail(), userRole);
-        String refreshToken = jwtTokenProvider.createRefreshToken(userId, user.getEmail(), userRole);
-
-        return new LoginResponse(
-                accessToken, refreshToken,
-                Instant.now(), jwtTokenProvider.getAccessExpiresAt(),
-                user.getFullName(), user.getEmail(),
-                user.getId(), userRole
-        );
-    }
-
-    private void persistRefreshToken(String rawToken, User user) {
-        RefreshToken tokenEntity = RefreshToken.builder()
-                .tokenHash(SecurityUtils.sha256Hex(rawToken))
-                .user(user)
-                .expiresAt(OffsetDateTime.ofInstant(jwtTokenProvider.getRefreshExpiresAt(), ZoneOffset.UTC))
-                .build();
-        refreshTokenRepository.save(tokenEntity);
     }
 }
