@@ -31,8 +31,10 @@ import org.springframework.context.annotation.Configuration;
                         
                         ## Authentication
                         
-                        All endpoints except `POST /api/v1/auth/*` require a JWT bearer token obtained from
-                        `POST /api/v1/auth/login`. Click **Authorize** and enter your access token.
+                        All endpoints require a Clerk session token (JWT) as a Bearer token
+                        (`Authorization: Bearer <clerk-jwt>`). Identity, signup and email OTP are handled by
+                        Clerk — the backend verifies the token signature against Clerk's JWKS and mirrors the
+                        user locally. Click **Authorize** and enter your Clerk session token.
                         
                         ## Response envelope
                         
@@ -53,7 +55,7 @@ import org.springframework.context.annotation.Configuration;
         type = SecuritySchemeType.HTTP,
         scheme = "bearer",
         bearerFormat = "JWT",
-        description = "JWT access token returned by POST /api/v1/auth/login. Set the refresh token "
-                + "cookie separately; the access token is supplied in the Authorization header.")
+        description = "Clerk session token (JWT) returned by Clerk after sign-in. Supplied in the Authorization "
+                + "header as `Bearer <token>`.")
 public class OpenAPIConfig {
 }

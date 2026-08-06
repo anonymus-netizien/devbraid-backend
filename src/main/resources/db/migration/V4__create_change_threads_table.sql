@@ -1,6 +1,6 @@
 CREATE TABLE change_threads
 (
-    id                   UUID PRIMARY KEY      DEFAULT uuidv7(),
+    id                   UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
     user_id              UUID         NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     repository_full_name VARCHAR(500) NOT NULL,
     head_branch          VARCHAR(255) NOT NULL,

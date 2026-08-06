@@ -27,11 +27,11 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(name = "clerk_id", nullable = false, unique = true)
+    private String clerkId;
+
     @Column(name = "full_name")
     private String fullName;
-
-    @Column(name = "password_hash", nullable = false)
-    private String passwordHash;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -39,9 +39,5 @@ public class User {
 
     public void setFullName(String fullName) {
         this.fullName = fullName;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
     }
 }

@@ -34,54 +34,10 @@ public class GlobalExceptionHandler {
 
     // ── User exceptions ──
 
-    @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<ApiResponse<?>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
-        log.warn("GlobalExceptionHandler :: User already exists: {}", ex.getMessage());
-        return error(HttpStatus.CONFLICT, ex.getMessage());
-    }
-
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiResponse<?>> handleUserNotFound(UserNotFoundException ex) {
         log.warn("GlobalExceptionHandler :: User not found: {}", ex.getMessage());
         return error(HttpStatus.NOT_FOUND, ex.getMessage());
-    }
-
-    @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<ApiResponse<?>> handleInvalidCredentials(InvalidCredentialsException ex) {
-        log.warn("GlobalExceptionHandler :: Invalid credentials: {}", ex.getMessage());
-        return error(HttpStatus.UNAUTHORIZED, ex.getMessage());
-    }
-
-    @ExceptionHandler(RefreshTokenRevokedException.class)
-    public ResponseEntity<ApiResponse<?>> handleRefreshTokenRevoked(RefreshTokenRevokedException ex) {
-        log.warn("GlobalExceptionHandler :: Refresh token revoked: {}", ex.getMessage());
-        return error(HttpStatus.UNAUTHORIZED, ex.getMessage());
-    }
-
-    // ── OTP exceptions ──
-
-    @ExceptionHandler(OtpExpiredException.class)
-    public ResponseEntity<ApiResponse<?>> handleOtpExpired(OtpExpiredException ex) {
-        log.warn("GlobalExceptionHandler :: OTP expired: {}", ex.getMessage());
-        return error(HttpStatus.GONE, ex.getMessage());
-    }
-
-    @ExceptionHandler(OtpInvalidException.class)
-    public ResponseEntity<ApiResponse<?>> handleOtpInvalid(OtpInvalidException ex) {
-        log.warn("GlobalExceptionHandler :: OTP invalid: {}", ex.getMessage());
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage());
-    }
-
-    @ExceptionHandler(OtpRateLimitException.class)
-    public ResponseEntity<ApiResponse<?>> handleOtpRateLimit(OtpRateLimitException ex) {
-        log.warn("GlobalExceptionHandler :: OTP rate limited: {}", ex.getMessage());
-        return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
-    }
-
-    @ExceptionHandler(RateLimitExceededException.class)
-    public ResponseEntity<ApiResponse<?>> handleRateLimit(RateLimitExceededException ex) {
-        log.warn("GlobalExceptionHandler :: Rate limited: {}", ex.getMessage());
-        return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
     }
 
     // ── GitHub exceptions ──
