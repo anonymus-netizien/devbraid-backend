@@ -1,6 +1,6 @@
 CREATE TABLE decision_notes
 (
-    id           UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
+    id           UUID PRIMARY KEY     DEFAULT uuidv7(),
     thread_id    UUID        NOT NULL REFERENCES change_threads (id) ON DELETE CASCADE,
     author_id    UUID        NOT NULL REFERENCES users (id),
     context      VARCHAR(20) NOT NULL,

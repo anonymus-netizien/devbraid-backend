@@ -1,6 +1,6 @@
 CREATE TABLE github_connections
 (
-    id              UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
+    id              UUID PRIMARY KEY     DEFAULT uuidv7(),
     user_id         UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     encrypted_pat   BYTEA       NOT NULL,
     iv              BYTEA       NOT NULL,
