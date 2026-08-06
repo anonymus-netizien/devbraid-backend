@@ -1,358 +1,136 @@
 # DevBraid Backend
 
-A Spring Boot backend application for the DevBraid platform.
+Spring Boot 4.1.0 backend for the DevBraid platform — capturing **why** code changes happen along a five-step flow:
+
+**Connect → Capture → Analyze → Reason → Publish**
+
+A developer connects a GitHub repo (PAT), creates a Change Thread to capture commits/diffs + decision notes, runs
+deterministic risk analysis, generates an AI change brief, and publishes it to a GitHub PR after human approval.
 
 ## Prerequisites
 
-- **Java 17** or higher
-- **Maven 3.8+** (or use the included Maven Wrapper `./mvnw`)
-- **Docker & Docker Compose** (for local PostgreSQL database)
+- **Java 21**
+- **Maven 3.8+**
+- **Docker & Docker Compose**
 - **Git**
 
 ## Quick Start
 
-### 1. Clone the repository
-
 ```bash
-git clone https://github.com/your-org/devbraid-backend.git
+# Clone and configure
+git clone https://github.com/anonymus-netizien/devbraid-backend.git
 cd devbraid-backend
+cp .env.example .env   # Edit with your credentials
+
+# Start infrastructure + app
+docker compose up -d --build
+
+# Or run locally (the ./mvnw wrapper is broken — use system Maven)
+docker compose up -d postgres redis
+mvn spring-boot:run
 ```
 
-### 2. Set up environment variables
+**Backend:** `http://localhost:8080` · **pgAdmin:** `http://localhost:5050`
 
-```bash
-cp .env.example .env
-# Edit .env with your local configuration
+## Tech Stack
+
+| Component  | Technology                                |
+|------------|-------------------------------------------|
+| Runtime    | Java 21                                   |
+| Framework  | Spring Boot 4.1.0                         |
+| ORM        | Spring Data JPA + Hibernate               |
+| Database   | PostgreSQL 18 (Flyway migrations)         |
+| Cache      | Redis 7 (OTP, rate limiting)              |
+| Auth       | JWT (HMAC256) + OTP (email-based)         |
+| AI         | OpenAI / Groq / OpenRouter (optional, graceful degradation) |
+| Encryption | AES-256-GCM for GitHub PATs               |
+| Testing    | JUnit 5 + Mockito + WireMock (246 tests)  |
+
+## Modules
+
+```
+com.devbraid
+├── user/          Auth (register, OTP, login, JWT, refresh tokens)
+├── github/        GitHub PAT connection, repo/branch listing
+├── changethread/  Change Threads + Decision Notes CRUD
+├── brief/         Change Brief generation + GitHub PR publishing
+├── analysis/      Deterministic risk analysis + AI enhancement
+├── ai/            AI provider abstraction (OpenAI)
+├── security/      JWT filter, SecurityConfig, CORS
+├── config/        Redis, Jackson, scheduling, REST client
+└── common/        ApiResponse envelope, GlobalExceptionHandler, LoggingFilter
 ```
 
-### 3. Start the database
+## API Endpoints
 
-```bash
-docker compose up -d
-```
+| Module  | Base Path                                     | Methods                                                           |
+|---------|-----------------------------------------------|-------------------------------------------------------------------|
+| Auth    | `/api/v1/auth`                                | register, login, logout, refresh, otp/*                           |
+| User    | `/api/v1/user`                                | profile (GET/PUT), password                                       |
+| GitHub  | `/api/v1/github`                              | connect, disconnect, status, repos, repos/{owner}/{repo}/branches |
+| Threads | `/api/v1/threads`                             | CRUD + refresh, analyze, brief, publish                           |
+| Notes   | `/api/v1/threads/{id}/notes`, `/api/v1/notes` | CRUD (thread-scoped + global list)                                |
+| Briefs  | `/api/v1/briefs`                              | list, get by ID                                                   |
 
-### 4. Run the application
-
-```bash
-# Using Maven Wrapper (recommended)
-./mvnw spring-boot:run
-
-# Or with explicit profile
-./mvnw spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=dev"
-```
-
----
-
-## Environment Configuration
-
-This project uses **Spring Profiles** to manage environment-specific configuration. Configuration is split across multiple YAML files:
-
-| File | Purpose |
-|------|---------|
-| `application.yml` | Common configuration shared across all environments |
-| `application-dev.yaml` | Development-specific settings (local, verbose logging) |
-| `application-stage.yaml` | Staging-specific settings (moderate logging, validation) |
-| `application-prod.yaml` | Production-specific settings (minimal logging, hardened security) |
-
-### How Profiles Work
-
-1. **Base configuration** (`application.yml`) loads first with common settings.
-2. **Profile-specific configuration** (`application-{profile}.yaml`) overrides or extends the base config.
-3. Environment variables using `${VAR_NAME}` syntax inject secrets and environment-specific values.
-
-### Activating a Profile
-
-There are several ways to activate a Spring profile:
-
-#### Option 1: Environment Variable (Recommended)
-
-```bash
-export SPRING_PROFILES_ACTIVE=dev
-./mvnw spring-boot:run
-```
-
-#### Option 2: Command-Line Argument
-
-```bash
-./mvnw spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=stage"
-```
-
-#### Option 3: System Property
-
-```bash
-./mvnw spring-boot:run -Dspring.profiles.active=prod
-```
-
-#### Option 4: In the `.env` file
-
-```bash
-SPRING_PROFILES_ACTIVE=dev
-```
-
----
-
-## Profile Details
-
-### Development (`dev`)
-
-The default profile for local development.
-
-| Setting | Value |
-|---------|-------|
-| Database URL | `jdbc:postgresql://localhost:5433/devbraid` |
-| Server Port | `8080` |
-| Hibernate DDL | `update` (auto-creates/updates tables) |
-| SQL Logging | Enabled (verbose) |
-| Swagger UI | Enabled |
-| Actuator | Enabled |
-
-**Features:**
-- Auto-schema updates via Hibernate
-- Detailed SQL logging for debugging
-- CORS allows multiple local origins (`localhost:3000`, `5173`, `4200`)
-- Development JWT secret (for local use only)
-
-### Staging (`stage`)
-
-For QA and pre-production testing.
-
-| Setting | Value |
-|---------|-------|
-| Database URL | `${STAGE_DB_URL}` (from environment) |
-| Server Port | `8080` |
-| Hibernate DDL | `validate` (no auto-changes) |
-| SQL Logging | Disabled |
-| Swagger UI | Enabled |
-| Actuator | Health, Info, Metrics |
-
-**Features:**
-- All secrets via environment variables (no defaults)
-- Schema validation only (no auto-migration)
-- Moderate logging levels
-- CORS restricted to staging domain
-
-### Production (`prod`)
-
-For live production deployments.
-
-| Setting | Value |
-|---------|-------|
-| Database URL | `${PROD_DB_URL}` (from environment) |
-| Server Port | `8080` |
-| Hibernate DDL | `validate` |
-| SQL Logging | Disabled |
-| Swagger UI | Disabled |
-| Actuator | Health, Info only (restricted) |
-
-**Features:**
-- All secrets via environment variables (REQUIRED, no defaults)
-- Tomcat tuned for production (200 threads, connection pooling)
-- Response compression enabled
-- HTTPS enforcement and HSTS headers
-- Strict CORS (single production domain)
-- Structured logging format
-- Actuator on separate port (9090)
-
----
-
-## Environment Variables
-
-### Quick Reference
-
-All environment variables are documented in `.env.example`. Here's a summary of the **required** variables:
-
-#### Common (All Environments)
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SPRING_PROFILES_ACTIVE` | Active Spring profile (`dev`, `stage`, `prod`) | `dev` |
-| `JWT_SECRET` | JWT signing secret (256-bit recommended) | *none* |
-
-#### Development
-
-All development variables have sensible defaults. Override via `DEV_*` prefixed environment variables.
-
-#### Staging (Required)
-
-| Variable | Description |
-|----------|-------------|
-| `STAGE_DB_URL` | PostgreSQL connection URL |
-| `STAGE_DB_USERNAME` | Database username |
-| `STAGE_DB_PASSWORD` | Database password |
-| `STAGE_JWT_SECRET` | JWT signing secret |
-
-#### Production (Required)
-
-| Variable | Description |
-|----------|-------------|
-| `PROD_DB_URL` | PostgreSQL connection URL |
-| `PROD_DB_USERNAME` | Database username |
-| `PROD_DB_PASSWORD` | Database password |
-| `PROD_JWT_SECRET` | JWT signing secret |
-
-### Variable Injection Pattern
-
-Configuration files use the `${VARIABLE_NAME:default}` pattern:
-
-```yaml
-# Uses environment variable with fallback default
-datasource:
-  url: ${DB_URL:jdbc:postgresql://localhost:5433/devbraid}
-  password: ${DB_PASSWORD:devbraid_password}
-
-# Requires environment variable (no default - will fail if not set)
-jwt:
-  secret: ${JWT_SECRET}
-```
-
----
-
-## Docker Setup
-
-### Start Database Only
-
-```bash
-docker compose up -d postgres
-```
-
-This starts PostgreSQL on port `5433` (mapped from container's `5432`).
-
-### Start All Services
-
-```bash
-docker compose up -d
-```
-
-### Stop Services
-
-```bash
-docker compose down
-```
-
-### Stop and Remove Data
-
-```bash
-docker compose down -v
-```
-
----
+See [`API.md`](API.md) for full API documentation with request/response examples, and run the app locally to browse
+the live OpenAPI spec at `http://localhost:8080/swagger-ui.html`.
 
 ## Database
 
-### Connection Details (Development)
+6 Flyway migrations (V1–V6):
 
-| Property | Value |
-|----------|-------|
-| Host | `localhost` |
-| Port | `5433` |
-| Database | `devbraid` |
-| Username | `devbraid_user` |
-| Password | `devbraid_password` |
+| Table                | Purpose                                                  |
+|----------------------|----------------------------------------------------------|
+| `users`              | User accounts (UUID v7 PK, bcrypt password)              |
+| `refresh_tokens`     | JWT refresh tokens (hash, revoked flag)                  |
+| `github_connections` | Encrypted PATs (AES-256-GCM, per-connection IV)          |
+| `change_threads`     | Workspaces with JSONB commits/diffs/risk reports         |
+| `decision_notes`     | Why-decisions (context, rationale, alternatives, impact) |
+| `change_briefs`      | AI-generated markdown briefs (1:1 with threads)          |
 
-### Migrations
+## Configuration
 
-This project uses **Flyway** for database migrations. Migration files are located in `src/main/resources/db/migration/`.
+| Profile | DDL      | CORS                     | JWT         | Redis               | DB Pool |
+|---------|----------|--------------------------|-------------|---------------------|---------|
+| `dev`   | update   | localhost:3000,5173,4200 | dev default | localhost defaults  | 5       |
+| `stage` | validate | staging.devbraid.com     | env required| env-driven (defaults) | 15    |
+| `prod`  | validate | devbraid.com             | env required| env required (fail-fast) | 25 |
 
-Migrations run automatically on application startup:
-- **dev**: Runs migrations + auto-updates schema via Hibernate
-- **stage**: Runs migrations, validates schema only
-- **prod**: Runs migrations, validates schema only (no out-of-order)
+Environment notes:
 
----
+- The DB and Redis credentials come from env vars (`DEV_*`, `STAGE_*`, `PROD_*`) — see `.env.example`. `prod` has **no defaults** for `PROD_DB_URL`/`PROD_REDIS_HOST`/`PROD_JWT_SECRET`: the app fails fast at startup if they are unset.
+- No Spring `context-path` is set in any profile — controllers map `/api/v1/...` themselves, so the API is at `/api/v1` in all environments (the old `/api` context-path produced `/api/api/v1` in prod).
+- PostgreSQL 18 is required because the migrations use the built-in `uuidv7()` default. Both prod and stage run `ddl-auto: validate`, so the schema must match V1–V6 exactly.
 
-## Building
-
-### Development Build
-
-```bash
-./mvnw clean package -DskipTests
-```
-
-### Production Build
+## Testing
 
 ```bash
-./mvnw clean package -P prod
+mvn test                           # 246 tests (all green)
+mvn test -Dtest=ChangeThreadServiceTest  # Single class
 ```
 
-### Run Tests
+## Docker
 
 ```bash
-./mvnw test
+docker compose up -d --build    # Build and start all
+docker compose ps               # Check status
+docker compose logs -f app      # Stream app logs
+docker compose down -v          # Stop + remove data
 ```
 
----
+## Security
 
-## Project Structure
+- BCrypt password hashing
+- JWT with 30-min access / 7-day refresh tokens
+- Refresh token rotation (old deleted on use)
+- AES-256-GCM PAT encryption with per-record IVs
+- OTP rate limiting (3/min via Redis)
+- Login/register rate limiting (Redis: per-user + per-IP, 429 on exceed)
+- Sensitive header redaction in logs
+- Ownership checks (`findByIdAndUserId`) on all resources
+- Unauthenticated requests get a JSON `401` (not the Spring default 403)
 
-```
-devbraid-backend/
-├── src/
-│   ├── main/
-│   │   ├── java/com/devbraid/     # Application source code
-│   │   └── resources/
-│   │       ├── application.yml         # Common configuration
-│   │       ├── application-dev.yaml    # Development profile
-│   │       ├── application-stage.yaml  # Staging profile
-│   │       ├── application-prod.yaml   # Production profile
-│   │       ├── db/migration/           # Flyway migrations
-│   │       ├── static/                 # Static resources
-│   │       └── templates/              # Template files
-│   └── test/                       # Test source code
-├── .env.example                    # Environment variable template
-├── docker-compose.yml              # Docker services configuration
-├── pom.xml                         # Maven project configuration
-└── mvnw                            # Maven Wrapper
-```
+## Project Docs
 
----
-
-## Development Workflow
-
-1. **Start database**: `docker compose up -d postgres`
-2. **Set environment**: `export SPRING_PROFILES_ACTIVE=dev`
-3. **Run application**: `./mvnw spring-boot:run`
-4. **Access endpoints**: `http://localhost:8080/`
-
-### IDE Configuration
-
-#### IntelliJ IDEA
-
-1. Go to **Run > Edit Configurations**
-2. Add **Environment variable**: `SPRING_PROFILES_ACTIVE=dev`
-3. Or add **VM Options**: `-Dspring.profiles.active=dev`
-
-#### VS Code
-
-Add to `.vscode/launch.json`:
-
-```json
-{
-  "configurations": [
-    {
-      "type": "java",
-      "name": "DevBraid Backend",
-      "request": "launch",
-      "mainClass": "com.devbraid.DevbraidBackendApplication",
-      "env": {
-        "SPRING_PROFILES_ACTIVE": "dev"
-      }
-    }
-  ]
-}
-```
-
----
-
-## Security Notes
-
-- **Never commit `.env` files** to version control (already in `.gitignore`)
-- **Use `.env.example`** as a template and copy it to `.env` for local development
-- **Production secrets** must be set via environment variables or a secrets manager
-- **JWT secrets** should be at least 256 bits (32 characters) for HS256
-- **Development JWT secret** is hardcoded for convenience - never use in production
-
----
-
-## License
-
-[Add your license here]
+- [`API.md`](API.md) — Full API documentation (endpoints, auth flow, errors)
+- `.env.example` — All environment variables documented per profile

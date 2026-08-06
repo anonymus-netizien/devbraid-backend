@@ -30,6 +30,21 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+  # Development Redis Configuration
+  data:
+    redis:
+      host: ${DEV_REDIS_HOST:localhost}
+      port: ${DEV_REDIS_PORT:6379}
+      password: ${DEV_REDIS_PASSWORD:}
+      database: ${DEV_REDIS_DB:0}
+      timeout: ${DEV_REDIS_TIMEOUT:2000ms}
+      lettuce:
+        pool:
+          max-active: ${DEV_REDIS_POOL_MAX:8}
+          max-idle: ${DEV_REDIS_POOL_MAX_IDLE:8}
+          min-idle: ${DEV_REDIS_POOL_MIN_IDLE:0}
+          max-wait: ${DEV_REDIS_POOL_MAX_WAIT:2000ms}
+
 # Development Server Configuration
 server:
   port: ${DEV_SERVER_PORT:8080}
@@ -46,17 +61,23 @@ logging:
     org.springframework.web: ${DEV_LOG_LEVEL_WEB:DEBUG}
     org.springframework.security: ${DEV_LOG_LEVEL_SECURITY:DEBUG}
 
-# Development-specific CORS (allow all origins for local dev)
+# Development-specific config: CORS, JWT, Encryption
 app:
   cors:
     allowed-origins: ${DEV_CORS_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:4200}
     allow-credentials: ${DEV_CORS_ALLOW_CREDENTIALS:true}
   jwt:
     secret: ${DEV_JWT_SECRET:dev-jwt-secret-key-for-development-only-12345678901234567890}
-    expiration: ${DEV_JWT_EXPIRATION:86400000}
+    access-expiration: ${DEV_JWT_ACCESS_EXPIRATION:1800000}
+    refresh-expiration: ${DEV_JWT_REFRESH_EXPIRATION:604800000}
+  encryption:
+    # IMPORTANT: The default key below is for LOCAL DEV ONLY. Never use in production.
+    # Generate a secure key with: openssl rand -hex 32
+    key: ${ENCRYPTION_KEY:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
 
-# Development Features
-features:
-  swagger-ui: ${DEV_FEATURES_SWAGGER_UI:true}
-  api-docs: ${DEV_FEATURES_API_DOCS:true}
-  actuator: ${DEV_FEATURES_ACTUATOR:true}
+# Development OpenAPI Documentation (enabled)
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
